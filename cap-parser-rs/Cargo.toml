@@ -1,0 +1,8 @@
+[package]
+name = "cap-parser-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+quick-xml = { version = "0.38.0", features = ["overlapped-lists", "serialize"] }
+serde = { version = "1.0.219", features = ["derive"] }
