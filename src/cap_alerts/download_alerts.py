@@ -1,12 +1,14 @@
+"""Download alerts from OpenFEMA api."""
+
 import lzma
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import httpx
 from dateutil.relativedelta import relativedelta
 from dateutil.rrule import YEARLY, rrule
 
-TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+TIMESTAMP = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
 OUT_DIR = Path("data")
 
 SIZE = 10_000
@@ -30,8 +32,7 @@ def get_alerts(client: httpx.Client, url: str, out_path: Path) -> None:
 
     except httpx.HTTPStatusError as e:
         print(f"ERROR {e.response.status_code}: {e.response.url}")
-        print(e.response.text)
-        raise e
+        raise
 
     outpath_xz = out_path.with_suffix(out_path.suffix + ".xz")
     with lzma.open(outpath_xz, "wb") as out_file:
@@ -39,11 +40,14 @@ def get_alerts(client: httpx.Client, url: str, out_path: Path) -> None:
 
 
 def get_alert_count(
-    client: httpx.Client, base_url: str, date_from: date, date_to: date
+    client: httpx.Client,
+    base_url: str,
+    date_from: date,
+    date_to: date,
 ) -> int:
     url = (
-        base_url
-        + f"$filter=sent ge '{date_from.isoformat()}' and sent le '{date_to.isoformat()}'"
+        base_url + f"$filter=sent ge '{date_from.isoformat()}'"
+        f"and sent le '{date_to.isoformat()}'"
     )
 
     try:
@@ -60,7 +64,7 @@ def get_alert_count(
 
 
 def main():
-    print(f"START {str(datetime.now())}")
+    print(f"START {datetime.now(UTC)!s}")
 
     with httpx.Client(timeout=None) as client:
         for date_from in rrule(
@@ -70,10 +74,14 @@ def main():
             until=TO_DATE,
         ):
             date_to = date_from + relativedelta(
-                month=12, day=31, hour=23, minute=59, second=59
+                month=12,
+                day=31,
+                hour=23,
+                minute=59,
+                second=59,
             )
 
-            print(f"BATCH {str(date_from)} -- {str(date_to)}")
+            print(f"BATCH {date_from!s} -- {date_to!s}")
             record_count = get_alert_count(
                 client,
                 BASE_URL,
@@ -89,8 +97,9 @@ def main():
                 to_request = min(100000, record_count)
 
                 params = (
-                    f"$filter=sent ge '{date_from.isoformat()}' and sent le '{date_to.isoformat()}'"
-                    + f"&$metadata=off&$format=jsonl&$skip={str(skip)}&$top={str(to_request)}"
+                    f"$filter=sent ge '{date_from.isoformat()}'"
+                    f"and sent le '{date_to.isoformat()}'"
+                    f"&$metadata=off&$format=jsonl&$skip={skip!s}&$top={to_request!s}"
                 )
 
                 url = BASE_URL + params
@@ -104,11 +113,11 @@ def main():
 
                 print(
                     f"      {i:03d} "
-                    + f"REQUEST {to_request:,} "
-                    + f"SKIP {skip:,} "
-                    + f"REMAINING {record_count - to_request:,} "
-                    + f"OUT {out_path.name}\n"
-                    + f"      {params}"
+                    f"REQUEST {to_request:,} "
+                    f"SKIP {skip:,} "
+                    f"REMAINING {record_count - to_request:,} "
+                    f"OUT {out_path.name}\n"
+                    f"      {params}",
                 )
 
                 record_count = record_count - to_request
@@ -117,7 +126,7 @@ def main():
 
             print()
 
-    print(f"END {str(datetime.now())}")
+    print(f"END {datetime.now(UTC)!s}")
 
 
 if __name__ == "__main__":

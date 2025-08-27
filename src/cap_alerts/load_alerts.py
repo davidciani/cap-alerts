@@ -1,8 +1,12 @@
+"""load_alerts.py -- extract alerts from jsonl and load to database."""
+
 import logging
 import lzma
 import multiprocessing
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import Future, ProcessPoolExecutor
+from multiprocessing.managers import DictProxy
 from pathlib import Path
+from typing import Any
 
 import msgspec.json
 from lxml import etree
@@ -19,9 +23,8 @@ from rich.progress import (
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from cap_alerts import models  # noqa: F401
-from cap_alerts.db import Base
-from cap_alerts.util import formatTime
+from cap_alerts import models
+from cap_alerts.util import format_time
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +32,11 @@ logger = logging.getLogger(__name__)
 IN_DIR = Path("data/json")
 FILES = list(IN_DIR.glob("IpawsArchivedAlerts_*.jsonl.xz"))
 
-logging.Formatter.formatTime = formatTime
+logging.Formatter.formatTime = format_time
 
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
 console = Console()
@@ -50,36 +54,53 @@ progress_columns = [
 session: sessionmaker[Session]
 
 
-def insert_alert(raw_xml: str):
-    try:
-        root = etree.fromstring(raw_xml.encode())
-        alert = models.Alert.from_element(root)
-    except ValueError as e:
-        raise e
+def insert_alert(raw_xml: str) -> None:
+    """Parse raw xml into Alert object and insert into database.
 
-    with session() as s:
-        with s.begin():
-            s.add(alert)
+    Args:
+        raw_xml (str): raw alert xml as a string
+    """
+    root = etree.fromstring(raw_xml.encode())
+    alert = models.Alert.from_element(root)
+
+    with session() as s, s.begin():
+        s.add(alert)
 
 
-def print_result(future):
-    pass
+def print_result(future: Future) -> None:
+    """If the task resulted in an exception, print it.
+
+    Args:
+        future (Future): task result
+    """
     if e := future.exception():
         console.log(e)
 
 
-def init_worker(progress):
-    global session, _progress
+def init_worker(progress: DictProxy[Any, Any]) -> None:
+    """Initalize worker process.
+
+    Args:
+        progress (dict): handle for progress bar to update
+    """
+    global session, _progress  # noqa: PLW0603
     engine = create_engine(
-        "postgresql+psycopg://cap_alerts_app@localhost/cap_alerts", echo=False
+        "postgresql+psycopg://cap_alerts_app@localhost/cap_alerts",
+        echo=False,
     )
 
     session = sessionmaker(engine)
     _progress = progress
 
 
-def process_file(task_id: int, file_path: Path):
-    with lzma.open(file_path,"rt") as f_in:
+def process_file(task_id: int, file_path: Path) -> None:
+    """Process a jsonl file, extract alert xml, and insert into database.
+
+    Args:
+        task_id (int): task id for progress bar
+        file_path (Path): jsonl file with alert records
+    """
+    with lzma.open(file_path, "rt") as f_in:
         lines = f_in.read().splitlines()
     len_of_task = len(lines)
 
@@ -90,15 +111,9 @@ def process_file(task_id: int, file_path: Path):
         _progress[task_id] = {"progress": n + 1, "total": len_of_task}
 
 
-def main():
+def main() -> None:
+    """Kick off multi-process ETL job."""
     console.log("START")
-
-    engine = create_engine(
-        "postgresql+psycopg://cap_alerts_app@localhost/cap_alerts", echo=False
-    )
-
-    # Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
 
     with Progress(*progress_columns, console=console) as progress:
         futures = []
@@ -107,25 +122,30 @@ def main():
 
             files = FILES
             overall_progress_task = progress.add_task(
-                "Loading files…", total=len(files)
+                "Loading files…",
+                total=len(files),
             )
 
             with ProcessPoolExecutor(
-                initializer=init_worker, initargs=(_progress,)
+                initializer=init_worker,
+                initargs=(_progress,),
             ) as executor:
-                for file_path in list(sorted(files)):
+                for file_path in sorted(files):
                     task_id = progress.add_task(
-                        f"Loading {file_path.name}…", visible=False
+                        f"Loading {file_path.name}…",
+                        visible=False,
                     )
                     future = executor.submit(process_file, task_id, file_path)
                     future.add_done_callback(print_result)
                     futures.append(future)
 
                 while (n_finished := sum([future.done() for future in futures])) < len(
-                    futures
+                    futures,
                 ):
                     progress.update(
-                        overall_progress_task, completed=n_finished, total=len(futures)
+                        overall_progress_task,
+                        completed=n_finished,
+                        total=len(futures),
                     )
                     for task_id, update_data in _progress.items():
                         latest = update_data["progress"]
@@ -147,5 +167,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# 4850417

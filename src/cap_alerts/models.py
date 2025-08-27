@@ -1,3 +1,5 @@
+"""Data models for cap_alerts."""
+
 from datetime import datetime
 from enum import Enum
 from itertools import chain
@@ -12,7 +14,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from cap_alerts.db import Base
 from cap_alerts.util import (
-    IPAWSAlertsError,
+    MalformedError,
     extract_quoted,
     findall,
     findalltext,
@@ -22,12 +24,16 @@ from cap_alerts.util import (
 
 
 class AlertScope(Enum):
+    """Scope of alert disemination."""
+
     PUBLIC = "Public"
     RESTRICTED = "Restricted"
     PRIVATE = "Private"
 
 
 class AlertStatus(Enum):
+    """Status of an alert."""
+
     ACTUAL = "Actual"
     EXERCISE = "Exercise"
     SYSTEM = "System"
@@ -36,6 +42,8 @@ class AlertStatus(Enum):
 
 
 class AlertType(Enum):
+    """Type of alert."""
+
     ALERT = "Alert"
     UPDATE = "Update"
     CANCEL = "Cancel"
@@ -44,6 +52,8 @@ class AlertType(Enum):
 
 
 class AlertCategoryCode(Enum):
+    """The type of event described by an alert."""
+
     GEO = "Geo"
     MET = "Met"
     SAFETY = "Safety"
@@ -59,6 +69,8 @@ class AlertCategoryCode(Enum):
 
 
 class AlertCertainty(Enum):
+    """Certainty of event."""
+
     OBSERVED = "Observed"
     VERY = "Very Likely"
     LIKELY = "Likely"
@@ -68,6 +80,8 @@ class AlertCertainty(Enum):
 
 
 class AlertResponseTypeCode(Enum):
+    """How one should respond to the alert."""
+
     SHELTER = "Shelter"
     EVACUATE = "Evacuate"
     PREPARE = "Prepare"
@@ -80,6 +94,8 @@ class AlertResponseTypeCode(Enum):
 
 
 class AlertSeverity(Enum):
+    """The severity of the potential event."""
+
     EXTREME = "Extreme"
     SEVERE = "Severe"
     MODERATE = "Moderate"
@@ -88,6 +104,8 @@ class AlertSeverity(Enum):
 
 
 class AlertUrgency(Enum):
+    """An alert's urgency."""
+
     IMMEDIATE = "Immediate"
     EXPECTED = "Expected"
     FUTURE = "Future"
@@ -96,6 +114,7 @@ class AlertUrgency(Enum):
 
 
 class Alert(Base):
+    """An alert."""
     __tablename__ = "alerts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -110,23 +129,36 @@ class Alert(Base):
     note: Mapped[str | None]
 
     addresses: Mapped[list["AlertAddress"]] = relationship(
-        back_populates="alert", cascade="all, delete-orphan"
+        back_populates="alert",
+        cascade="all, delete-orphan",
     )
     codes: Mapped[list["AlertCode"]] = relationship(
-        back_populates="alert", cascade="all, delete-orphan"
+        back_populates="alert",
+        cascade="all, delete-orphan",
     )
     references: Mapped[list["AlertReference"]] = relationship(
-        back_populates="alert", cascade="all, delete-orphan"
+        back_populates="alert",
+        cascade="all, delete-orphan",
     )
     incidents: Mapped[list["AlertIncident"]] = relationship(
-        back_populates="alert", cascade="all, delete-orphan"
+        back_populates="alert",
+        cascade="all, delete-orphan",
     )
     alert_info: Mapped[list["AlertInfo"]] = relationship(
-        back_populates="alert", cascade="all, delete-orphan"
+        back_populates="alert",
+        cascade="all, delete-orphan",
     )
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
+        """Instantiate _cls_ from xml element.
+
+        Args:
+            elem (_Element): XML element representing _cls_.
+
+        Returns:
+            Self: Instantiated _cls_.
+        """
         if sent_str := findtext(elem, "cap:sent"):
             sent = datetime.fromisoformat(sent_str)
         else:
@@ -162,6 +194,7 @@ class Alert(Base):
 
 
 class AlertAddress(Base):
+    """Address associated with an Alert."""
     __tablename__ = "alert_addresses"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -172,6 +205,7 @@ class AlertAddress(Base):
 
 
 class AlertCode(Base):
+    """Code associated with an Alert."""
     __tablename__ = "alert_codes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -182,6 +216,7 @@ class AlertCode(Base):
 
 
 class AlertIncident(Base):
+    """Incidents associated with an alert."""
     __tablename__ = "alert_incidents"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -192,6 +227,7 @@ class AlertIncident(Base):
 
 
 class AlertReference(Base):
+    """Reference to another alert associated with an Alert."""
     __tablename__ = "alert_references"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -204,6 +240,14 @@ class AlertReference(Base):
 
     @classmethod
     def from_text(cls, text: str) -> Self:
+        """Instantiate AlertReference from text.
+
+        Args:
+            text (str): reference text
+
+        Returns:
+            Self: Instantiated AlertReference.
+        """
         try:
             sender, identifier, sent_str = text.split(",")
             sent = datetime.fromisoformat(sent_str)
@@ -216,6 +260,7 @@ class AlertReference(Base):
 
 
 class AlertInfo(Base):
+    """A set of information being communicated about an alert."""
     __tablename__ = "alert_info"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -224,18 +269,21 @@ class AlertInfo(Base):
     event: Mapped[str]
     urgency: Mapped[AlertUrgency] = mapped_column(
         sqlalchemy.Enum(
-            AlertUrgency, values_callable=lambda t: [str(item.value) for item in t]
-        )
+            AlertUrgency,
+            values_callable=lambda t: [str(item.value) for item in t],
+        ),
     )
     severity: Mapped[AlertSeverity] = mapped_column(
         sqlalchemy.Enum(
-            AlertSeverity, values_callable=lambda t: [str(item.value) for item in t]
-        )
+            AlertSeverity,
+            values_callable=lambda t: [str(item.value) for item in t],
+        ),
     )
     certainty: Mapped[AlertCertainty] = mapped_column(
         sqlalchemy.Enum(
-            AlertCertainty, values_callable=lambda t: [str(item.value) for item in t]
-        )
+            AlertCertainty,
+            values_callable=lambda t: [str(item.value) for item in t],
+        ),
     )
     audience: Mapped[str | None]
     effective: Mapped[datetime | None]
@@ -249,28 +297,42 @@ class AlertInfo(Base):
     contact: Mapped[str | None]
 
     categories: Mapped[list["AlertInfoCategory"]] = relationship(
-        back_populates="alert_info", cascade="all, delete-orphan"
+        back_populates="alert_info",
+        cascade="all, delete-orphan",
     )
     response_types: Mapped[list["AlertInfoResponseType"]] = relationship(
-        back_populates="alert_info", cascade="all, delete-orphan"
+        back_populates="alert_info",
+        cascade="all, delete-orphan",
     )
     event_codes: Mapped[list["AlertInfoEventCode"]] = relationship(
-        back_populates="alert_info", cascade="all, delete-orphan"
+        back_populates="alert_info",
+        cascade="all, delete-orphan",
     )
     parameters: Mapped[list["AlertInfoParameter"]] = relationship(
-        back_populates="alert_info", cascade="all, delete-orphan"
+        back_populates="alert_info",
+        cascade="all, delete-orphan",
     )
     resources: Mapped[list["AlertInfoResource"]] = relationship(
-        back_populates="alert_info", cascade="all, delete-orphan"
+        back_populates="alert_info",
+        cascade="all, delete-orphan",
     )
     areas: Mapped[list["Area"]] = relationship(
-        back_populates="alert_info", cascade="all, delete-orphan"
+        back_populates="alert_info",
+        cascade="all, delete-orphan",
     )
 
     alert: Mapped["Alert"] = relationship(back_populates="alert_info")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
+        """Instantiate AlertInfo from xml element.
+
+        Args:
+            elem (_Element): XML element representing AlertInfo.
+
+        Returns:
+            Self: Instantiated AlertInfo.
+        """
         response_types = [
             AlertInfoResponseType(responsetype=AlertResponseTypeCode(x))
             for x in findalltext(elem, "cap:responseType")
@@ -331,20 +393,23 @@ class AlertInfo(Base):
 
 
 class AlertInfoCategory(Base):
+    """A category associated with an AlertInfo."""
     __tablename__ = "alert_info_categories"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     alertinfo_id: Mapped[int] = mapped_column(ForeignKey("alert_info.id"))
     category: Mapped[AlertCategoryCode] = mapped_column(
         sqlalchemy.Enum(
-            AlertCategoryCode, values_callable=lambda t: [str(item.value) for item in t]
-        )
+            AlertCategoryCode,
+            values_callable=lambda t: [str(item.value) for item in t],
+        ),
     )
 
     alert_info: Mapped["AlertInfo"] = relationship(back_populates="categories")
 
 
 class AlertInfoResponseType(Base):
+    """Response type associated with an AlertInfo."""
     __tablename__ = "alert_info_response_types"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -355,6 +420,7 @@ class AlertInfoResponseType(Base):
 
 
 class AlertInfoEventCode(Base):
+    """Event code associated with an AlertInfo."""
     __tablename__ = "alert_info_event_codes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -366,6 +432,14 @@ class AlertInfoEventCode(Base):
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
+        """Instantiate AlertInfoEventCode from xml element.
+
+        Args:
+            elem (_Element): XML element representing AlertInfoEventCode.
+
+        Returns:
+            Self: Instantiated AlertInfoEventCode.
+        """
         return cls(
             value_name=findtext(elem, "cap:valueName"),
             value=findtext(elem, "cap:value"),
@@ -373,6 +447,7 @@ class AlertInfoEventCode(Base):
 
 
 class AlertInfoParameter(Base):
+    """Parameter associated with an AlertInfo."""
     __tablename__ = "alert_info_parameters"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -384,6 +459,14 @@ class AlertInfoParameter(Base):
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
+        """Instantiate AlertInfoParameter from xml element.
+
+        Args:
+            elem (_Element): XML element representing AlertInfoParameter.
+
+        Returns:
+            Self: Instantiated AlertInfoParameter.
+        """
         return cls(
             value_name=findtext(elem, "cap:valueName"),
             value=findtext(elem, "cap:value"),
@@ -391,6 +474,7 @@ class AlertInfoParameter(Base):
 
 
 class AlertInfoResource(Base):
+    """External resource attached to an AlertInfo."""
     __tablename__ = "alert_info_resources"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -406,6 +490,14 @@ class AlertInfoResource(Base):
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
+        """Instantiate AlertInfoResource from xml element.
+
+        Args:
+            elem (_Element): XML element representing AlertInfoResource.
+
+        Returns:
+            Self: Instantiated AlertInfoResource.
+        """
         return cls(
             resource_description=findtext(elem, "cap:resourceDesc"),
             mime_type=findtext(elem, "cap:mimeType"),
@@ -417,6 +509,7 @@ class AlertInfoResource(Base):
 
 
 class Area(Base):
+    """A geographic area that an alert applies to."""
     __tablename__ = "areas"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -426,16 +519,26 @@ class Area(Base):
     ceiling: Mapped[int | None]
 
     polygons: Mapped[list["AreaPolygon"]] = relationship(
-        back_populates="area", cascade="all, delete-orphan"
+        back_populates="area",
+        cascade="all, delete-orphan",
     )
     geocodes: Mapped[list["AreaGeoCode"]] = relationship(
-        back_populates="area", cascade="all, delete-orphan"
+        back_populates="area",
+        cascade="all, delete-orphan",
     )
 
     alert_info: Mapped["AlertInfo"] = relationship(back_populates="areas")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
+        """Instantiate Area from xml element.
+
+        Args:
+            elem (_Element): XML element representing Area.
+
+        Returns:
+            Self: Instantiated Area.
+        """
         polygons = list(
             chain(
                 [
@@ -446,7 +549,7 @@ class Area(Base):
                     AreaPolygon.from_circle_text(x)
                     for x in findalltext(elem, "cap:circle")
                 ],
-            )
+            ),
         )
 
         geocodes = [AreaGeoCode.from_element(x) for x in findall(elem, "cap:geocode")]
@@ -461,6 +564,7 @@ class Area(Base):
 
 
 class AreaGeoCode(Base):
+    """Geocode-based description for an area."""
     __tablename__ = "area_geocodes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -472,6 +576,14 @@ class AreaGeoCode(Base):
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
+        """Instantiate AreaGeoCode from xml element.
+
+        Args:
+            elem (_Element): XML element representing AreaGeoCode.
+
+        Returns:
+            Self: Instantiated AreaGeoCode.
+        """
         return cls(
             value_name=findtext(elem, "cap:valueName"),
             value=findtext(elem, "cap:value"),
@@ -479,29 +591,47 @@ class AreaGeoCode(Base):
 
 
 class AreaPolygon(Base):
+    """Polygon-based description for an area."""
     __tablename__ = "area_polygons"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     area_id: Mapped[int] = mapped_column(ForeignKey("areas.id"))
     geom: Mapped[WKBElement] = mapped_column(
-        Geography(geometry_type="POLYGON", srid=4326)
+        Geography(geometry_type="POLYGON", srid=4326),
     )
 
     area: Mapped["Area"] = relationship(back_populates="polygons")
 
     @classmethod
     def from_circle_text(cls, text: str) -> Self:
+        """Instantiate Polygon from text description of circle.
+
+        Args:
+            text (str): text description of circle.
+
+        Returns:
+            Self: Polygon representing the circle.
+        """
         try:
             coords, radius = text.split()
             latitude, longitude = coords.split(",")
         except ValueError as e:
-            raise IPAWSAlertsError("Malformed AreaPolygon[circle]", text) from e
+            msg = "Malformed AreaPolygon[circle]"
+            raise MalformedError(msg, text) from e
 
         circle = Point(float(latitude), float(longitude)).buffer(float(radius) * 1000)
         return cls(geom=f"srid=4326;{circle.wkt}")
 
     @classmethod
     def from_polygon_text(cls, text: str) -> Self:
+        """Instantiate Polygon from text description of polygon.
+
+        Args:s
+            text (str): text description of polygon.
+
+        Returns:
+            Self: Instantiated Polygon.
+        """
         points = []
 
         try:
@@ -509,7 +639,8 @@ class AreaPolygon(Base):
                 latitude, longitude = point.split(",")
                 points.append(Point(float(longitude), float(latitude)))
         except ValueError as e:
-            raise IPAWSAlertsError("Malformed AreaPolygon[polygon]", text) from e
+            msg = "Malformed AreaPolygon[polygon]"
+            raise MalformedError(msg, text) from e
 
         polygon = Polygon(points)
         return cls(geom=f"srid=4326;{polygon.wkt}")
