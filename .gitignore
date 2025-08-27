@@ -16,3 +16,5 @@ data/
 .vscode
 
 uv.lock
+
+.ruff_cache
