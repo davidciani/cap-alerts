@@ -29,7 +29,7 @@ from cap_alerts.util import format_time
 logger = logging.getLogger(__name__)
 
 
-IN_DIR = Path("data/json")
+IN_DIR = Path("data/ipaws_alerts/json")
 FILES = list(IN_DIR.glob("IpawsArchivedAlerts_*.jsonl.xz"))
 
 logging.Formatter.formatTime = format_time
@@ -54,17 +54,14 @@ progress_columns = [
 session: sessionmaker[Session]
 
 
-def insert_alert(raw_xml: str) -> None:
+def parse_alert(raw_xml: str) -> models.Alert:
     """Parse raw xml into Alert object and insert into database.
 
     Args:
         raw_xml (str): raw alert xml as a string
     """
     root = etree.fromstring(raw_xml.encode())
-    alert = models.Alert.from_element(root)
-
-    with session() as s, s.begin():
-        s.add(alert)
+    return models.Alert.from_element(root)
 
 
 def print_result(future: Future) -> None:
@@ -93,6 +90,22 @@ def init_worker(progress: DictProxy[Any, Any]) -> None:
     _progress = progress
 
 
+def has_cmas(alert: models.Alert) -> bool:
+    """Detect if alert was distributed by CMAS.
+
+    Args:
+        alert (models.Alert): alert to check
+
+    Returns:
+        bool: False if alert has parameter BLOCKCHANNEL = CMAS, else True.
+    """
+    for info in alert.alert_info:
+        for param in info.parameters:
+            if param.value_name == "BLOCKCHANNEL" and param.value == "CMAS":
+                return False
+    return True
+
+
 def process_file(task_id: int, file_path: Path) -> None:
     """Process a jsonl file, extract alert xml, and insert into database.
 
@@ -107,7 +120,16 @@ def process_file(task_id: int, file_path: Path) -> None:
     decoder = msgspec.json.Decoder()
     for n, line in enumerate(lines):
         raw_xml: str = decoder.decode(line)["originalMessage"]
-        insert_alert(raw_xml)
+        alert = parse_alert(raw_xml)
+
+        # skip the non-CMAS alerts from NWS
+        if alert.sender == "w-nws.webmaster@noaa.gov" and not has_cmas(alert):
+            _progress[task_id] = {"progress": n + 1, "total": len_of_task}
+            continue
+
+        with session() as s, s.begin():
+            s.add(alert)
+
         _progress[task_id] = {"progress": n + 1, "total": len_of_task}
 
 
