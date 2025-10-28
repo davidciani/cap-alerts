@@ -16,8 +16,8 @@ SKIP = 0
 
 LIMIT = None
 
-FROM_DATE = date(2016, 1, 1)
-TO_DATE = date(2025, 12, 31)
+FROM_DATE = date(2025, 1, 1)
+TO_DATE = date(2025, 10, 27)
 
 # 2017-03-01 to 2017-04-30
 # 2022-10-01
@@ -25,9 +25,14 @@ TO_DATE = date(2025, 12, 31)
 BASE_URL = "https://www.fema.gov/api/open/v1/IpawsArchivedAlerts?"
 
 
-def get_alerts(client: httpx.Client, url: str, out_path: Path) -> None:
+def get_alerts(
+    client: httpx.Client,
+    url: str,
+    params: dict[str, str],
+    out_path: Path,
+) -> None:
     try:
-        resp = client.get(url)
+        resp = client.get(url, params=params)
         resp.raise_for_status()
 
     except httpx.HTTPStatusError as e:
@@ -45,13 +50,17 @@ def get_alert_count(
     date_from: date,
     date_to: date,
 ) -> int:
-    url = (
-        base_url + f"$filter=sent ge '{date_from.isoformat()}'"
-        f"and sent le '{date_to.isoformat()}'"
-    )
-
     try:
-        resp = client.get(url + "&$count=true&$select=id&$top=1")
+        resp = client.get(
+            base_url,
+            params={
+                "$filter": f"sent%20ge%20%27{date_from.isoformat()}%27"
+                f"%20and%20sent%20le%20%27{date_to.isoformat()}%27",
+                "$count": "true",
+                "$select": "id",
+                "$top": "1",
+            },
+        )
         resp.raise_for_status()
 
     except httpx.HTTPStatusError as e:
@@ -96,20 +105,21 @@ def main():
             while record_count > 0:
                 to_request = min(100000, record_count)
 
-                params = (
-                    f"$filter=sent ge '{date_from.isoformat()}'"
-                    f"and sent le '{date_to.isoformat()}'"
-                    f"&$metadata=off&$format=jsonl&$skip={skip!s}&$top={to_request!s}"
-                )
-
-                url = BASE_URL + params
+                params = {
+                    "$filter": f"sent%20ge%20%27{date_from.isoformat()}%27"
+                    f"%20and%20sent%20le%20%27{date_to.isoformat()}%27",
+                    "$metadata": "off",
+                    "$format": "jsonl",
+                    "$skip": str(skip),
+                    "$top": str(to_request),
+                }
 
                 out_path = Path(
                     OUT_DIR,
                     f"IpawsArchivedAlerts_{date_from:%Y}_{i:03d}.jsonl",
                 )
 
-                get_alerts(client, url, out_path)
+                get_alerts(client, BASE_URL, params, out_path)
 
                 print(
                     f"      {i:03d} "
