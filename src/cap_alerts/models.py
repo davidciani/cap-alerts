@@ -1,4 +1,4 @@
-"""Data models for cap_alerts."""
+"""models.py - Data models for cap_alerts."""
 
 from datetime import datetime
 from enum import Enum
@@ -7,6 +7,7 @@ from typing import Self
 
 import sqlalchemy
 from geoalchemy2 import Geography, WKBElement
+from geoalchemy2.shape import from_shape
 from lxml.etree import _Element
 from shapely import Point, Polygon
 from sqlalchemy import ForeignKey
@@ -14,12 +15,15 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from cap_alerts.db import Base
 from cap_alerts.util import (
-    MalformedError,
+    MalformedPolygonError,
     extract_quoted,
+    find_date,
+    find_text,
     findall,
     findalltext,
-    findint,
-    findtext,
+    get_date,
+    get_int,
+    get_text,
 )
 
 
@@ -115,7 +119,8 @@ class AlertUrgency(Enum):
 
 class Alert(Base):
     """An alert."""
-    __tablename__ = "alerts"
+
+    __tablename__: str = "alerts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     identifier: Mapped[str]
@@ -159,11 +164,6 @@ class Alert(Base):
         Returns:
             Self: Instantiated _cls_.
         """
-        if sent_str := findtext(elem, "cap:sent"):
-            sent = datetime.fromisoformat(sent_str)
-        else:
-            sent = None
-
         addresses = [
             AlertAddress(address=x) for x in extract_quoted(elem, "cap:addresses")
         ]
@@ -176,15 +176,15 @@ class Alert(Base):
         ]
         alert_info = [AlertInfo.from_element(x) for x in findall(elem, "cap:info")]
         return cls(
-            identifier=findtext(elem, "cap:identifier"),
-            sender=findtext(elem, "cap:sender"),
-            sent=sent,
-            status=findtext(elem, "cap:status"),
-            msgtype=findtext(elem, "cap:msgType"),
-            source=findtext(elem, "cap:source"),
-            scope=findtext(elem, "cap:scope"),
-            restriction=findtext(elem, "cap:restriction"),
-            note=findtext(elem, "cap:note"),
+            identifier=find_text(elem, "cap:identifier"),
+            sender=find_text(elem, "cap:sender"),
+            sent=find_date(elem, "cap:sent"),
+            status=find_text(elem, "cap:status"),
+            msgtype=find_text(elem, "cap:msgType"),
+            source=find_text(elem, "cap:source"),
+            scope=find_text(elem, "cap:scope"),
+            restriction=get_text(elem, "cap:restriction"),
+            note=get_text(elem, "cap:note"),
             addresses=addresses,
             codes=codes,
             references=references,
@@ -195,7 +195,8 @@ class Alert(Base):
 
 class AlertAddress(Base):
     """Address associated with an Alert."""
-    __tablename__ = "alert_addresses"
+
+    __tablename__: str = "alert_addresses"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"))
@@ -206,7 +207,8 @@ class AlertAddress(Base):
 
 class AlertCode(Base):
     """Code associated with an Alert."""
-    __tablename__ = "alert_codes"
+
+    __tablename__: str = "alert_codes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"))
@@ -217,7 +219,8 @@ class AlertCode(Base):
 
 class AlertIncident(Base):
     """Incidents associated with an alert."""
-    __tablename__ = "alert_incidents"
+
+    __tablename__: str = "alert_incidents"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"))
@@ -228,7 +231,8 @@ class AlertIncident(Base):
 
 class AlertReference(Base):
     """Reference to another alert associated with an Alert."""
-    __tablename__ = "alert_references"
+
+    __tablename__: str = "alert_references"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"))
@@ -261,7 +265,8 @@ class AlertReference(Base):
 
 class AlertInfo(Base):
     """A set of information being communicated about an alert."""
-    __tablename__ = "alert_info"
+
+    __tablename__: str = "alert_info"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"))
@@ -352,37 +357,22 @@ class AlertInfo(Base):
         ]
         areas = [Area.from_element(x) for x in findall(elem, "cap:area")]
 
-        if sent_str := findtext(elem, "cap:effective"):
-            effective = datetime.fromisoformat(sent_str)
-        else:
-            effective = None
-
-        if onset_str := findtext(elem, "cap:onset"):
-            onset = datetime.fromisoformat(onset_str)
-        else:
-            onset = None
-
-        if expires_str := findtext(elem, "cap:expires"):
-            expires = datetime.fromisoformat(expires_str)
-        else:
-            expires = None
-
         return cls(
-            language=findtext(elem, "cap:language"),
-            event=findtext(elem, "cap:event"),
-            urgency=findtext(elem, "cap:urgency"),
-            severity=findtext(elem, "cap:severity"),
-            certainty=findtext(elem, "cap:certainty"),
-            audience=findtext(elem, "cap:audience"),
-            effective=effective,
-            onset=onset,
-            expires=expires,
-            sender_name=findtext(elem, "cap:senderName"),
-            headline=findtext(elem, "cap:headline"),
-            description=findtext(elem, "cap:description"),
-            instruction=findtext(elem, "cap:instruction"),
-            web=findtext(elem, "cap:web"),
-            contact=findtext(elem, "cap:contact"),
+            language=find_text(elem, "cap:language"),
+            event=find_text(elem, "cap:event"),
+            urgency=AlertUrgency(find_text(elem, "cap:urgency")),
+            severity=AlertSeverity(find_text(elem, "cap:severity")),
+            certainty=AlertCertainty(find_text(elem, "cap:certainty")),
+            audience=get_text(elem, "cap:audience"),
+            effective=get_date(elem, "cap:effective"),
+            onset=get_date(elem, "cap:onset"),
+            expires=get_date(elem, "cap:expires"),
+            sender_name=get_text(elem, "cap:senderName"),
+            headline=get_text(elem, "cap:headline"),
+            description=get_text(elem, "cap:description"),
+            instruction=get_text(elem, "cap:instruction"),
+            web=get_text(elem, "cap:web"),
+            contact=get_text(elem, "cap:contact"),
             response_types=response_types,
             categories=categories,
             event_codes=event_codes,
@@ -394,7 +384,8 @@ class AlertInfo(Base):
 
 class AlertInfoCategory(Base):
     """A category associated with an AlertInfo."""
-    __tablename__ = "alert_info_categories"
+
+    __tablename__: str = "alert_info_categories"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     alertinfo_id: Mapped[int] = mapped_column(ForeignKey("alert_info.id"))
@@ -410,7 +401,8 @@ class AlertInfoCategory(Base):
 
 class AlertInfoResponseType(Base):
     """Response type associated with an AlertInfo."""
-    __tablename__ = "alert_info_response_types"
+
+    __tablename__: str = "alert_info_response_types"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     alertinfo_id: Mapped[int] = mapped_column(ForeignKey("alert_info.id"))
@@ -421,7 +413,8 @@ class AlertInfoResponseType(Base):
 
 class AlertInfoEventCode(Base):
     """Event code associated with an AlertInfo."""
-    __tablename__ = "alert_info_event_codes"
+
+    __tablename__: str = "alert_info_event_codes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     alertinfo_id: Mapped[int] = mapped_column(ForeignKey("alert_info.id"))
@@ -441,14 +434,15 @@ class AlertInfoEventCode(Base):
             Self: Instantiated AlertInfoEventCode.
         """
         return cls(
-            value_name=findtext(elem, "cap:valueName"),
-            value=findtext(elem, "cap:value"),
+            value_name=find_text(elem, "cap:valueName"),
+            value=find_text(elem, "cap:value"),
         )
 
 
 class AlertInfoParameter(Base):
     """Parameter associated with an AlertInfo."""
-    __tablename__ = "alert_info_parameters"
+
+    __tablename__: str = "alert_info_parameters"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     alertinfo_id: Mapped[int] = mapped_column(ForeignKey("alert_info.id"))
@@ -468,14 +462,15 @@ class AlertInfoParameter(Base):
             Self: Instantiated AlertInfoParameter.
         """
         return cls(
-            value_name=findtext(elem, "cap:valueName"),
-            value=findtext(elem, "cap:value"),
+            value_name=find_text(elem, "cap:valueName"),
+            value=find_text(elem, "cap:value"),
         )
 
 
 class AlertInfoResource(Base):
     """External resource attached to an AlertInfo."""
-    __tablename__ = "alert_info_resources"
+
+    __tablename__: str = "alert_info_resources"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     alertinfo_id: Mapped[int] = mapped_column(ForeignKey("alert_info.id"))
@@ -499,18 +494,19 @@ class AlertInfoResource(Base):
             Self: Instantiated AlertInfoResource.
         """
         return cls(
-            resource_description=findtext(elem, "cap:resourceDesc"),
-            mime_type=findtext(elem, "cap:mimeType"),
-            size=findint(elem, "cap:size"),
-            uri=findtext(elem, "cap:uri"),
-            deref_uri=findtext(elem, "cap:derefUri"),
-            digest=findtext(elem, "cap:digest"),
+            resource_description=find_text(elem, "cap:resourceDesc"),
+            mime_type=find_text(elem, "cap:mimeType"),
+            size=get_int(elem, "cap:size"),
+            uri=get_text(elem, "cap:uri"),
+            deref_uri=get_text(elem, "cap:derefUri"),
+            digest=get_text(elem, "cap:digest"),
         )
 
 
 class Area(Base):
     """A geographic area that an alert applies to."""
-    __tablename__ = "areas"
+
+    __tablename__: str = "areas"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     alertinfo_id: Mapped[int] = mapped_column(ForeignKey("alert_info.id"))
@@ -555,9 +551,9 @@ class Area(Base):
         geocodes = [AreaGeoCode.from_element(x) for x in findall(elem, "cap:geocode")]
 
         return cls(
-            area_description=findtext(elem, "cap:areaDesc"),
-            altitude=findint(elem, "cap:altitude"),
-            ceiling=findint(elem, "cap:ceiling"),
+            area_description=find_text(elem, "cap:areaDesc"),
+            altitude=get_int(elem, "cap:altitude"),
+            ceiling=get_int(elem, "cap:ceiling"),
             polygons=polygons,
             geocodes=geocodes,
         )
@@ -565,7 +561,8 @@ class Area(Base):
 
 class AreaGeoCode(Base):
     """Geocode-based description for an area."""
-    __tablename__ = "area_geocodes"
+
+    __tablename__: str = "area_geocodes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     area_id: Mapped[int] = mapped_column(ForeignKey("areas.id"))
@@ -585,14 +582,15 @@ class AreaGeoCode(Base):
             Self: Instantiated AreaGeoCode.
         """
         return cls(
-            value_name=findtext(elem, "cap:valueName"),
-            value=findtext(elem, "cap:value"),
+            value_name=find_text(elem, "cap:valueName"),
+            value=find_text(elem, "cap:value"),
         )
 
 
 class AreaPolygon(Base):
     """Polygon-based description for an area."""
-    __tablename__ = "area_polygons"
+
+    __tablename__: str = "area_polygons"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     area_id: Mapped[int] = mapped_column(ForeignKey("areas.id"))
@@ -617,10 +615,10 @@ class AreaPolygon(Base):
             latitude, longitude = coords.split(",")
         except ValueError as e:
             msg = "Malformed AreaPolygon[circle]"
-            raise MalformedError(msg, text) from e
+            raise MalformedPolygonError(msg, text) from e
 
         circle = Point(float(latitude), float(longitude)).buffer(float(radius) * 1000)
-        return cls(geom=f"srid=4326;{circle.wkt}")
+        return cls(geom=from_shape(circle, srid=4326))
 
     @classmethod
     def from_polygon_text(cls, text: str) -> Self:
@@ -640,7 +638,8 @@ class AreaPolygon(Base):
                 points.append(Point(float(longitude), float(latitude)))
         except ValueError as e:
             msg = "Malformed AreaPolygon[polygon]"
-            raise MalformedError(msg, text) from e
+            raise MalformedPolygonError(msg, text) from e
 
         polygon = Polygon(points)
-        return cls(geom=f"srid=4326;{polygon.wkt}")
+
+        return cls(geom=from_shape(polygon, srid=4326))

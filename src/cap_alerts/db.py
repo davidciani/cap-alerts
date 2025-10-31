@@ -1,5 +1,7 @@
+"""db.py - Database setup stuff."""
+
 from sqlalchemy.orm import DeclarativeBase
 
 
 class Base(DeclarativeBase):
-    pass
+    """A SQLAlchemy declarative base class for the app."""
