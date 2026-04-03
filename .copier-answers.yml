@@ -1,0 +1,22 @@
+# Changes here will be overwritten by Copier
+_commit: ee2a6d1
+_src_path: /Users/david/projects/copier-python-template
+author_email: dciani@davidciani.com
+author_name: David Ciani
+github_username: davidciani
+include_cli: true
+include_codecov: true
+include_dependabot: true
+include_docs: true
+include_github_actions: true
+include_prek: true
+include_pypi_publish: true
+include_security_scanning: true
+license: MIT
+project_description: A Python package to consume, display, and analyze Common Alerting
+    Protocol alerts.
+project_name: CAP Alerts
+project_slug: cap_alerts
+python_version: '3.14'
+python_versions_matrix: '3.14'
+repository_name: cap-alerts

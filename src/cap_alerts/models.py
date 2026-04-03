@@ -3,12 +3,11 @@
 from datetime import datetime
 from enum import Enum
 from itertools import chain
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 import sqlalchemy
 from geoalchemy2 import Geography, WKBElement
 from geoalchemy2.shape import from_shape
-from lxml.etree import _Element
 from shapely import Point, Polygon
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -25,6 +24,9 @@ from cap_alerts.util import (
     get_int,
     get_text,
 )
+
+if TYPE_CHECKING:
+    from lxml.etree import _Element
 
 
 class AlertScope(Enum):
@@ -133,23 +135,23 @@ class Alert(Base):
     restriction: Mapped[str | None]
     note: Mapped[str | None]
 
-    addresses: Mapped[list["AlertAddress"]] = relationship(
+    addresses: Mapped[list[AlertAddress]] = relationship(
         back_populates="alert",
         cascade="all, delete-orphan",
     )
-    codes: Mapped[list["AlertCode"]] = relationship(
+    codes: Mapped[list[AlertCode]] = relationship(
         back_populates="alert",
         cascade="all, delete-orphan",
     )
-    references: Mapped[list["AlertReference"]] = relationship(
+    references: Mapped[list[AlertReference]] = relationship(
         back_populates="alert",
         cascade="all, delete-orphan",
     )
-    incidents: Mapped[list["AlertIncident"]] = relationship(
+    incidents: Mapped[list[AlertIncident]] = relationship(
         back_populates="alert",
         cascade="all, delete-orphan",
     )
-    alert_info: Mapped[list["AlertInfo"]] = relationship(
+    alert_info: Mapped[list[AlertInfo]] = relationship(
         back_populates="alert",
         cascade="all, delete-orphan",
     )
@@ -202,7 +204,7 @@ class AlertAddress(Base):
     alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"))
     address: Mapped[str]
 
-    alert: Mapped[list["Alert"]] = relationship(back_populates="addresses")
+    alert: Mapped[list[Alert]] = relationship(back_populates="addresses")
 
 
 class AlertCode(Base):
@@ -214,7 +216,7 @@ class AlertCode(Base):
     alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"))
     code: Mapped[str]
 
-    alert: Mapped[list["Alert"]] = relationship(back_populates="codes")
+    alert: Mapped[list[Alert]] = relationship(back_populates="codes")
 
 
 class AlertIncident(Base):
@@ -226,7 +228,7 @@ class AlertIncident(Base):
     alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"))
     incident: Mapped[str]
 
-    alert: Mapped[list["Alert"]] = relationship(back_populates="incidents")
+    alert: Mapped[list[Alert]] = relationship(back_populates="incidents")
 
 
 class AlertReference(Base):
@@ -240,7 +242,7 @@ class AlertReference(Base):
     identifier: Mapped[str]
     sent: Mapped[datetime | None]
 
-    alert: Mapped[list["Alert"]] = relationship(back_populates="references")
+    alert: Mapped[list[Alert]] = relationship(back_populates="references")
 
     @classmethod
     def from_text(cls, text: str) -> Self:
@@ -301,32 +303,32 @@ class AlertInfo(Base):
     web: Mapped[str | None]
     contact: Mapped[str | None]
 
-    categories: Mapped[list["AlertInfoCategory"]] = relationship(
+    categories: Mapped[list[AlertInfoCategory]] = relationship(
         back_populates="alert_info",
         cascade="all, delete-orphan",
     )
-    response_types: Mapped[list["AlertInfoResponseType"]] = relationship(
+    response_types: Mapped[list[AlertInfoResponseType]] = relationship(
         back_populates="alert_info",
         cascade="all, delete-orphan",
     )
-    event_codes: Mapped[list["AlertInfoEventCode"]] = relationship(
+    event_codes: Mapped[list[AlertInfoEventCode]] = relationship(
         back_populates="alert_info",
         cascade="all, delete-orphan",
     )
-    parameters: Mapped[list["AlertInfoParameter"]] = relationship(
+    parameters: Mapped[list[AlertInfoParameter]] = relationship(
         back_populates="alert_info",
         cascade="all, delete-orphan",
     )
-    resources: Mapped[list["AlertInfoResource"]] = relationship(
+    resources: Mapped[list[AlertInfoResource]] = relationship(
         back_populates="alert_info",
         cascade="all, delete-orphan",
     )
-    areas: Mapped[list["Area"]] = relationship(
+    areas: Mapped[list[Area]] = relationship(
         back_populates="alert_info",
         cascade="all, delete-orphan",
     )
 
-    alert: Mapped["Alert"] = relationship(back_populates="alert_info")
+    alert: Mapped[Alert] = relationship(back_populates="alert_info")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
@@ -396,7 +398,7 @@ class AlertInfoCategory(Base):
         ),
     )
 
-    alert_info: Mapped["AlertInfo"] = relationship(back_populates="categories")
+    alert_info: Mapped[AlertInfo] = relationship(back_populates="categories")
 
 
 class AlertInfoResponseType(Base):
@@ -408,7 +410,7 @@ class AlertInfoResponseType(Base):
     alertinfo_id: Mapped[int] = mapped_column(ForeignKey("alert_info.id"))
     responsetype: Mapped[AlertResponseTypeCode]
 
-    alert_info: Mapped["AlertInfo"] = relationship(back_populates="response_types")
+    alert_info: Mapped[AlertInfo] = relationship(back_populates="response_types")
 
 
 class AlertInfoEventCode(Base):
@@ -421,7 +423,7 @@ class AlertInfoEventCode(Base):
     value_name: Mapped[str]
     value: Mapped[str]
 
-    alert_info: Mapped["AlertInfo"] = relationship(back_populates="event_codes")
+    alert_info: Mapped[AlertInfo] = relationship(back_populates="event_codes")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
@@ -449,7 +451,7 @@ class AlertInfoParameter(Base):
     value_name: Mapped[str]
     value: Mapped[str]
 
-    alert_info: Mapped["AlertInfo"] = relationship(back_populates="parameters")
+    alert_info: Mapped[AlertInfo] = relationship(back_populates="parameters")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
@@ -481,7 +483,7 @@ class AlertInfoResource(Base):
     deref_uri: Mapped[str | None]
     digest: Mapped[str | None]
 
-    alert_info: Mapped["AlertInfo"] = relationship(back_populates="resources")
+    alert_info: Mapped[AlertInfo] = relationship(back_populates="resources")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
@@ -514,16 +516,16 @@ class Area(Base):
     altitude: Mapped[int | None]
     ceiling: Mapped[int | None]
 
-    polygons: Mapped[list["AreaPolygon"]] = relationship(
+    polygons: Mapped[list[AreaPolygon]] = relationship(
         back_populates="area",
         cascade="all, delete-orphan",
     )
-    geocodes: Mapped[list["AreaGeoCode"]] = relationship(
+    geocodes: Mapped[list[AreaGeoCode]] = relationship(
         back_populates="area",
         cascade="all, delete-orphan",
     )
 
-    alert_info: Mapped["AlertInfo"] = relationship(back_populates="areas")
+    alert_info: Mapped[AlertInfo] = relationship(back_populates="areas")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
@@ -569,7 +571,7 @@ class AreaGeoCode(Base):
     value_name: Mapped[str]
     value: Mapped[str]
 
-    area: Mapped["Area"] = relationship(back_populates="geocodes")
+    area: Mapped[Area] = relationship(back_populates="geocodes")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
@@ -598,7 +600,7 @@ class AreaPolygon(Base):
         Geography(geometry_type="POLYGON", srid=4326),
     )
 
-    area: Mapped["Area"] = relationship(back_populates="polygons")
+    area: Mapped[Area] = relationship(back_populates="polygons")
 
     @classmethod
     def from_circle_text(cls, text: str) -> Self:

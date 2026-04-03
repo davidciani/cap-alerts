@@ -4,9 +4,8 @@ import logging
 import lzma
 import multiprocessing
 from concurrent.futures import Future, ProcessPoolExecutor
-from multiprocessing.managers import DictProxy
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import msgspec.json
 from lxml import etree
@@ -25,6 +24,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from cap_alerts import models
 from cap_alerts.util import format_time
+
+if TYPE_CHECKING:
+    from multiprocessing.managers import DictProxy
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +82,7 @@ def init_worker(progress: DictProxy[Any, Any]) -> None:
     Args:
         progress (dict): handle for progress bar to update
     """
-    global session, _progress  # noqa: PLW0603
+    global session, _progress
     engine = create_engine(
         "postgresql+psycopg://cap_alerts_app@localhost/cap_alerts",
         echo=False,

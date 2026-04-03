@@ -1,15 +1,31 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+
 [project]
-name = "cap-alerts"
+name = "cap_alerts"
 version = "0.1.0"
-description = "Add your description here"
+description = "A Python package to consume, display, and analyze Common Alerting Protocol alerts."
 readme = "README.md"
+license = "MIT"
+requires-python = ">=3.14"
 authors = [
     { name = "David Ciani", email = "dciani@davidciani.com" }
 ]
-requires-python = "==3.13.*"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+     "Programming Language :: Python :: 3.14",
+     "Typing :: Typed",
+     ]
+keywords = []
 dependencies = [
+    "typer",
     "aiofiles>=24.1.0",
-    "click>=8.1.8",
     "flask>=3.1.2",
     "geoalchemy2>=0.17.1",
     "httpx>=0.27.2",
@@ -24,46 +40,58 @@ dependencies = [
     "types-lxml>=2024.11.8",
 ]
 
-[project.optional-dependencies]
-maintain = [
-    "black>=23.9",
-    "blacken-docs>=1.16",
-    "git-changelog>=2.3",
-]
-quality = [
-    "ruff>=0.0",
-]
-tests = [
-    "pytest>=7.4",
-    "pytest-cov>=4.1",
-    "pytest-randomly>=3.15",
-    "pytest-xdist>=3.3",
-]
-typing = [
-    "mypy>=1.5",
-    "types-markdown>=3.5",
-    "types-pyyaml>=6.0",
-]
-security = [
-    "safety>=2.3",
-]
+[dependency-groups]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "ruff",
+  "ty",
+  "hatch",
+  "prek",
+  "pysentry-rs",
+  "zensical",
+  "mkdocstrings-python"
+  ]
+
+[project.urls]
+Homepage = "https://github.com/davidciani/cap-alerts"
+Documentation = "https://davidciani.github.io/cap-alerts"
+Repository = "https://github.com/davidciani/cap-alerts"
+Issues = "https://github.com/davidciani/cap-alerts/issues"
+Changelog = "https://github.com/davidciani/cap-alerts/blob/main/CHANGELOG.md"
+
 
 [project.scripts]
-ipaws-alerts = "cap_alerts:main"
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+cap_alerts = "cap_alerts:main"
 
 
+# =============================================================================
+# Hatch
+# =============================================================================
 
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/{{ project_slug }}"]
+
+# Matrix testing across Python versions
+[tool.hatch.envs.test]
+
+[[tool.hatch.envs.test.matrix]]
+python = ["3.14"]
+
+
+
+# =============================================================================
+# Coverage
+# =============================================================================
 [tool.coverage.run]
+source =["src/","tests/"]
 branch = true
 parallel = true
-source =[
-  "src/",
-  "tests/"
-  ]
 
 [tool.coverage.paths]
 equivalent =[
@@ -71,179 +99,83 @@ equivalent =[
   ]
 
 [tool.coverage.report]
-precision = 2
-omit =[
-  "src/*/__init__.py",
-  "src/*/__main__.py",
-  "tests/__init__.py"
-  ]
-
-exclude_lines =[
-  "pragma: no cover",
-  "if TYPE_CHECKING"
-  ]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+show_missing = true
 
 [tool.coverage.json]
 output = "htmlcov/coverage.json"
 
-
+# =============================================================================
+# Pytest
+# =============================================================================
 [tool.pytest.ini_options]
-norecursedirs =[
-  ".git",
-  ".tox",
-  ".env",
-  "dist",
-  "build",
-  ]
+testpaths = ["tests"]
+pythonpath = ["src"]
 
-python_files =[
-  "test_*.py",
-  "*_test.py",
-  "tests.py"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
 
-addopts =[
-  "--cov"
-  ]
-
-testpaths =[
-  "tests"
-]
-
-# action:message_regex:warning_class:module_regex:line
-filterwarnings =[
-  "error",
-  # TODO: remove once pytest-xdist 4 is released
-  "ignore:.*rsyncdir:DeprecationWarning:xdist"
-]
-
-[tool.mypy]
-ignore_missing_imports = true
-exclude = "tests/fixtures/"
-warn_unused_ignores = true
-show_error_codes = true
+# =============================================================================
+# Ruff
+# =============================================================================
 
 [tool.ruff]
+target-version = "py314"
 line-length = 88
-indent-width = 4
+src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = [
-
-    # default rules
-
-    "F", # pyflakes
-    "E4", "E7","E9", # pycoodestyle
-
-    ## Extra Rules
-
-    "E", # pycoodestyle
-    "W" , # pycoodestyle
-    "C90", # mccabe
-    "I", # isort
-    "N", # pep8-naming
-    "D", # pydocstyle
-    "UP", # pyupgrade
-    "ERA", # eradicate
-    "PGH", # pygrep-hooks
-    "PL", # pylint
-    "TRY", # tryceratops
-    "FLY", # flynt
-    "PERF", # perflint
-    "FURB", # refurb
-    "RUF", # Ruff-specific rules
-
-    # All the Flake8 Rules
-    
-    "YTT", # flake8-2020
-    "ANN", # flake8-annotations
-    "ASYNC", # flake8-async
-    "S", # flake8-bandit
-    "BLE", # flake8-blind-except
-    "FBT", # flake8-boolean-trap
-    "B", # flake8-bugbear
-    "A", # flake8-builtins
-    "COM", # flake8-commas
-    "CPY", # flake8-copyright
-    "C4", # flake8-comprehensions
-    "DTZ", # flake8-datetimez
-    "T10", # flake8-debugger
-    "EM", # flake8-errmsg
-    "EXE", # flake8-executable
-    "FA", # flake8-future-annotations
-    "ISC", # flake8-implicit-str-concat
-    "ICN", # flake8-import-conventions
-    "LOG", # flake8-logging
-    "G", # flake8-logging-format
-    "INP", # flake8-no-pep420
-    "PIE", # flake8-pie
-    "T20", # flake8-print
-    "PYI", # flake8-pyi
-    "PT", # flake8-pytest-style
-    "Q", # flake8-quotes
-    "RSE", # flake8-raise
-    "RET", # flake8-return
-    "SLF", # flake8-self
-    "SLOT", # flake8-slots
-    "SIM", # flake8-simplify
-    "TID", # flake8-tidy-imports
-    "TC", # flake8-type-checking
-    "ARG", # flake8-unused-arguments
-    "PTH", # flake8-use-pathlib
-    "TD", # flake8-todos
-    "FIX", # flake8-fixmes
-    
-]
-ignore = [
-    "D105",  # Missing docstring in magic method
-    "D417",  # Missing argument description in the docstring
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+    "TC",    # flake8-type-checking
+    "PTH",    # flake8-use-pathlib
+    "ERA",    # eradicate
+    "RUF",    # Ruff-specific rules
 ]
 
 
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "auto"
+[tool.ruff.lint.isort]
+known-first-party = ["cap_alerts"]
 
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*.py" = [
-    #"ARG005",  # Unused lambda argument
-    #"FBT001",  # Boolean positional arg in function definition
-    #"PLR2004",  # Magic value used in comparison
-    "S101",  # Use of assert detected
-]
-
-[tool.ruff.lint.flake8-quotes]
-docstring-quotes = "double"
-
-[tool.ruff.lint.flake8-tidy-imports]
-ban-relative-imports = "all"
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"
+"tests/**/*.py" = ["ARG001"]
 
 
-[tool.git-changelog]
-bump = "auto"
-convention = "conventional"
-in-place = true
-output = "CHANGELOG.md"
-parse-refs = false
-parse-trailers = true
-sections = [
-  "feat",
-  "fix",
-  "perf",
-  "ref",
-  "doc",
-  "revert",
-  "tests",
-  "build",
-  "deps",
-  "chore",
-  "ci",
-  "style"
-  ]
-template = "angular"
+# =============================================================================
+# ty (Astral type checker)
+# =============================================================================
+
+[tool.ty.src]
+include = ["**/*.py"]
+
+# =============================================================================
+# git-cliff (Changelog generation)
+# =============================================================================
+
+[tool.git-cliff]
+config = "cliff.toml"
+
+# =============================================================================
+# uv
+# =============================================================================
+[tool.uv]
+package = true
+default-groups = ["dev"]
