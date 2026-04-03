@@ -6,7 +6,8 @@ from cap_alerts import __version__
 
 app = typer.Typer(
     name="cap_alerts",
-    help="A Python package to consume, display, and analyze Common Alerting Protocol alerts.",
+    help="A Python package to consume, display, and analyze Common Alerting"
+    "Protocol alerts.",
     add_completion=False,
 )
 
@@ -29,7 +30,9 @@ def main(
         is_eager=True,
     ),
 ) -> None:
-    """A Python package to consume, display, and analyze Common Alerting Protocol alerts."""
+    """
+    A Python package to consume, display, and analyze Common Alerting Protocol alerts.
+    """
 
 
 @app.command()
