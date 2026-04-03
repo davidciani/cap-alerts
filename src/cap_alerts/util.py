@@ -1,12 +1,14 @@
 """Utility functions for cap_alerts."""
 
 from datetime import datetime
-from logging import Formatter, LogRecord
+from typing import TYPE_CHECKING
 
 import pyparsing as pp
-from lxml.etree import _Element
 
 from cap_alerts import NS_MAP
+
+if TYPE_CHECKING:
+    from lxml.etree import _Element
 
 
 class IPAWSAlertsError(Exception):
@@ -56,24 +58,6 @@ def convint(st: str) -> int:
         return int(st)
     except ValueError:  # If you get a ValueError
         return int(float(st))
-
-
-def format_time(self: Formatter, record: LogRecord, datefmt: str | None = None) -> str:  # noqa: ARG001
-    """Time formatter for logging.
-
-    Args:
-        self (Formatter): formatter object
-        record (LogRecord): the log reccord
-        datefmt (str | None, optional): a specified dateformat. Defaults to None.
-
-    Returns:
-        str: formatted time
-    """
-    return (
-        datetime.fromtimestamp(record.created)
-        .astimezone()
-        .isoformat(timespec="milliseconds")
-    )
 
 
 def find(elem: _Element, xpath: str) -> _Element | None:

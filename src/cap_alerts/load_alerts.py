@@ -23,7 +23,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from cap_alerts import models
-from cap_alerts.util import format_time
 
 if TYPE_CHECKING:
     from multiprocessing.managers import DictProxy
@@ -34,7 +33,6 @@ logger = logging.getLogger(__name__)
 IN_DIR = Path("data/ipaws_alerts/json")
 FILES = list(IN_DIR.glob("IpawsArchivedAlerts_*.jsonl.xz"))
 
-logging.Formatter.formatTime = format_time
 
 logging.basicConfig(
     level=logging.INFO,
@@ -54,6 +52,7 @@ progress_columns = [
 
 
 session: sessionmaker[Session]
+_progress: DictProxy[Any, Any]
 
 
 def parse_alert(raw_xml: str) -> models.Alert:
