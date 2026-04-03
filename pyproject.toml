@@ -38,6 +38,7 @@ dependencies = [
     "shapely>=2.0.6",
     "sqlalchemy[asyncio]>=2.0.36",
     "types-lxml>=2024.11.8",
+    "sqlmodel>=0.0.38",
 ]
 
 [dependency-groups]
