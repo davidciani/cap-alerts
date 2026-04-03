@@ -5,12 +5,11 @@ from enum import Enum
 from itertools import chain
 from typing import TYPE_CHECKING, Self
 
-import sqlalchemy
 from geoalchemy2 import Geography, WKBElement
 from geoalchemy2.shape import from_shape
 from shapely import Point, Polygon
-from sqlalchemy import ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import mapped_column, relationship
+from sqlmodel import Field, Relationship, SQLModel
 
 from cap_alerts.db import Base
 from cap_alerts.util import (
@@ -29,7 +28,7 @@ if TYPE_CHECKING:
     from lxml.etree import _Element
 
 
-class AlertScope(Enum):
+class AlertScope(str, Enum):
     """Scope of alert disemination."""
 
     PUBLIC = "Public"
@@ -37,7 +36,7 @@ class AlertScope(Enum):
     PRIVATE = "Private"
 
 
-class AlertStatus(Enum):
+class AlertStatus(str, Enum):
     """Status of an alert."""
 
     ACTUAL = "Actual"
@@ -47,7 +46,7 @@ class AlertStatus(Enum):
     DRAFT = "Draft"
 
 
-class AlertType(Enum):
+class AlertType(str, Enum):
     """Type of alert."""
 
     ALERT = "Alert"
@@ -57,7 +56,7 @@ class AlertType(Enum):
     ERROR = "Error"
 
 
-class AlertCategoryCode(Enum):
+class AlertCategoryCode(str, Enum):
     """The type of event described by an alert."""
 
     GEO = "Geo"
@@ -74,7 +73,7 @@ class AlertCategoryCode(Enum):
     OTHER = "Other"
 
 
-class AlertCertainty(Enum):
+class AlertCertainty(str, Enum):
     """Certainty of event."""
 
     OBSERVED = "Observed"
@@ -85,7 +84,7 @@ class AlertCertainty(Enum):
     UNKNOWN = "Unknown"
 
 
-class AlertResponseTypeCode(Enum):
+class AlertResponseTypeCode(str, Enum):
     """How one should respond to the alert."""
 
     SHELTER = "Shelter"
@@ -99,7 +98,7 @@ class AlertResponseTypeCode(Enum):
     NONE = "None"
 
 
-class AlertSeverity(Enum):
+class AlertSeverity(str, Enum):
     """The severity of the potential event."""
 
     EXTREME = "Extreme"
@@ -109,7 +108,7 @@ class AlertSeverity(Enum):
     UNKNOWN = "Unknown"
 
 
-class AlertUrgency(Enum):
+class AlertUrgency(str, Enum):
     """An alert's urgency."""
 
     IMMEDIATE = "Immediate"
@@ -119,41 +118,34 @@ class AlertUrgency(Enum):
     UNKNOWN = "Unknown"
 
 
-class Alert(Base):
+class Alert(SQLModel, table=True):
     """An alert."""
 
     __tablename__: str = "alerts"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    identifier: Mapped[str]
-    sender: Mapped[str]
-    sent: Mapped[datetime]
-    status: Mapped[str]
-    msgtype: Mapped[str]
-    source: Mapped[str | None]
-    scope: Mapped[str]
-    restriction: Mapped[str | None]
-    note: Mapped[str | None]
+    id: int | None = Field(default=None, primary_key=True)
+    identifier: str
+    sender: str
+    sent: datetime
+    status: str
+    msgtype: str
+    source: str | None
+    scope: str
+    restriction: str | None
+    note: str | None
 
-    addresses: Mapped[list[AlertAddress]] = relationship(
-        back_populates="alert",
-        cascade="all, delete-orphan",
+    addresses: list[AlertAddress] = Relationship(
+        back_populates="alert", cascade_delete=True
     )
-    codes: Mapped[list[AlertCode]] = relationship(
-        back_populates="alert",
-        cascade="all, delete-orphan",
+    codes: list[AlertCode] = Relationship(back_populates="alert", cascade_delete=True)
+    references: list[AlertReference] = Relationship(
+        back_populates="alert", cascade_delete=True
     )
-    references: Mapped[list[AlertReference]] = relationship(
-        back_populates="alert",
-        cascade="all, delete-orphan",
+    incidents: list[AlertIncident] = Relationship(
+        back_populates="alert", cascade_delete=True
     )
-    incidents: Mapped[list[AlertIncident]] = relationship(
-        back_populates="alert",
-        cascade="all, delete-orphan",
-    )
-    alert_info: Mapped[list[AlertInfo]] = relationship(
-        back_populates="alert",
-        cascade="all, delete-orphan",
+    alert_info: list[AlertInfo] = Relationship(
+        back_populates="alert", cascade_delete=True
     )
 
     @classmethod
@@ -195,54 +187,54 @@ class Alert(Base):
         )
 
 
-class AlertAddress(Base):
+class AlertAddress(SQLModel, table=True):
     """Address associated with an Alert."""
 
     __tablename__: str = "alert_addresses"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"))
-    address: Mapped[str]
+    id: int | None = Field(default=None, primary_key=True)
+    alert_id: int = Field(foreign_key="alerts.id")
+    address: str
 
-    alert: Mapped[list[Alert]] = relationship(back_populates="addresses")
+    alert: list[Alert] = Relationship(back_populates="addresses")
 
 
-class AlertCode(Base):
+class AlertCode(SQLModel, table=True):
     """Code associated with an Alert."""
 
     __tablename__: str = "alert_codes"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"))
-    code: Mapped[str]
+    id: int | None = Field(default=None, primary_key=True)
+    alert_id: int = Field(foreign_key="alerts.id")
+    code: str
 
-    alert: Mapped[list[Alert]] = relationship(back_populates="codes")
+    alert: list[Alert] = Relationship(back_populates="codes")
 
 
-class AlertIncident(Base):
+class AlertIncident(SQLModel, table=True):
     """Incidents associated with an alert."""
 
     __tablename__: str = "alert_incidents"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"))
-    incident: Mapped[str]
+    id: int | None = Field(default=None, primary_key=True)
+    alert_id: int = Field(foreign_key="alerts.id")
+    incident: str
 
-    alert: Mapped[list[Alert]] = relationship(back_populates="incidents")
+    alert: list[Alert] = Relationship(back_populates="incidents")
 
 
-class AlertReference(Base):
+class AlertReference(SQLModel, table=True):
     """Reference to another alert associated with an Alert."""
 
     __tablename__: str = "alert_references"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"))
-    sender: Mapped[str | None]
-    identifier: Mapped[str]
-    sent: Mapped[datetime | None]
+    id: int | None = Field(default=None, primary_key=True)
+    alert_id: int = Field(foreign_key="alerts.id")
+    sender: str | None
+    identifier: str
+    sent: datetime | None
 
-    alert: Mapped[list[Alert]] = relationship(back_populates="references")
+    alert: list[Alert] = Relationship(back_populates="references")
 
     @classmethod
     def from_text(cls, text: str) -> Self:
@@ -270,65 +262,42 @@ class AlertInfo(Base):
 
     __tablename__: str = "alert_info"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"))
-    language: Mapped[str] = mapped_column(default="en-US")
-    event: Mapped[str]
-    urgency: Mapped[AlertUrgency] = mapped_column(
-        sqlalchemy.Enum(
-            AlertUrgency,
-            values_callable=lambda t: [str(item.value) for item in t],
-        ),
-    )
-    severity: Mapped[AlertSeverity] = mapped_column(
-        sqlalchemy.Enum(
-            AlertSeverity,
-            values_callable=lambda t: [str(item.value) for item in t],
-        ),
-    )
-    certainty: Mapped[AlertCertainty] = mapped_column(
-        sqlalchemy.Enum(
-            AlertCertainty,
-            values_callable=lambda t: [str(item.value) for item in t],
-        ),
-    )
-    audience: Mapped[str | None]
-    effective: Mapped[datetime | None]
-    onset: Mapped[datetime | None]
-    expires: Mapped[datetime | None]
-    sender_name: Mapped[str | None]
-    headline: Mapped[str | None]
-    description: Mapped[str | None]
-    instruction: Mapped[str | None]
-    web: Mapped[str | None]
-    contact: Mapped[str | None]
+    id: int | None = Field(default=None, primary_key=True)
+    alert_id: int = Field(foreign_key="alerts.id")
+    language: str = Field(default="en-US")
+    event: str
+    urgency: AlertUrgency
+    severity: AlertSeverity
+    certainty: AlertCertainty
+    audience: str | None
+    effective: datetime
+    onset: datetime
+    expires: datetime
+    sender_name: str | None
+    headline: str | None
+    description: str | None
+    instruction: str | None
+    web: str | None
+    contact: str | None
 
-    categories: Mapped[list[AlertInfoCategory]] = relationship(
-        back_populates="alert_info",
-        cascade="all, delete-orphan",
+    categories: list[AlertInfoCategory] = Relationship(
+        back_populates="alert_info", cascade_delete=True
     )
-    response_types: Mapped[list[AlertInfoResponseType]] = relationship(
-        back_populates="alert_info",
-        cascade="all, delete-orphan",
+    response_types: list[AlertInfoResponseType] = Relationship(
+        back_populates="alert_info", cascade_delete=True
     )
-    event_codes: Mapped[list[AlertInfoEventCode]] = relationship(
-        back_populates="alert_info",
-        cascade="all, delete-orphan",
+    event_codes: list[AlertInfoEventCode] = Relationship(
+        back_populates="alert_info", cascade_delete=True
     )
-    parameters: Mapped[list[AlertInfoParameter]] = relationship(
-        back_populates="alert_info",
-        cascade="all, delete-orphan",
+    parameters: list[AlertInfoParameter] = Relationship(
+        back_populates="alert_info", cascade_delete=True
     )
-    resources: Mapped[list[AlertInfoResource]] = relationship(
-        back_populates="alert_info",
-        cascade="all, delete-orphan",
+    resources: list[AlertInfoResource] = Relationship(
+        back_populates="alert_info", cascade_delete=True
     )
-    areas: Mapped[list[Area]] = relationship(
-        back_populates="alert_info",
-        cascade="all, delete-orphan",
-    )
+    areas: list[Area] = relationship(back_populates="alert_info", cascade_delete=True)
 
-    alert: Mapped[Alert] = relationship(back_populates="alert_info")
+    alert: Alert = relationship(back_populates="alert_info")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
@@ -384,46 +353,41 @@ class AlertInfo(Base):
         )
 
 
-class AlertInfoCategory(Base):
+class AlertInfoCategory(SQLModel, table=True):
     """A category associated with an AlertInfo."""
 
     __tablename__: str = "alert_info_categories"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    alertinfo_id: Mapped[int] = mapped_column(ForeignKey("alert_info.id"))
-    category: Mapped[AlertCategoryCode] = mapped_column(
-        sqlalchemy.Enum(
-            AlertCategoryCode,
-            values_callable=lambda t: [str(item.value) for item in t],
-        ),
-    )
+    id: int | None = Field(default=None, primary_key=True)
+    alertinfo_id: int = Field(foreign_key="alert_info.id")
+    category: AlertCategoryCode
 
-    alert_info: Mapped[AlertInfo] = relationship(back_populates="categories")
+    alert_info: AlertInfo = Relationship(back_populates="categories")
 
 
-class AlertInfoResponseType(Base):
+class AlertInfoResponseType(SQLModel, table=True):
     """Response type associated with an AlertInfo."""
 
     __tablename__: str = "alert_info_response_types"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    alertinfo_id: Mapped[int] = mapped_column(ForeignKey("alert_info.id"))
-    responsetype: Mapped[AlertResponseTypeCode]
+    id: int | None = Field(default=None, primary_key=True)
+    alertinfo_id: int = Field(foreign_key="alert_info.id")
+    responsetype: AlertResponseTypeCode
 
-    alert_info: Mapped[AlertInfo] = relationship(back_populates="response_types")
+    alert_info: AlertInfo = relationship(back_populates="response_types")
 
 
-class AlertInfoEventCode(Base):
+class AlertInfoEventCode(SQLModel, table=True):
     """Event code associated with an AlertInfo."""
 
     __tablename__: str = "alert_info_event_codes"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    alertinfo_id: Mapped[int] = mapped_column(ForeignKey("alert_info.id"))
-    value_name: Mapped[str]
-    value: Mapped[str]
+    id: int | None = Field(default=None, primary_key=True)
+    alertinfo_id: int = Field(foreign_key="alert_info.id")
+    value_name: str
+    value: str
 
-    alert_info: Mapped[AlertInfo] = relationship(back_populates="event_codes")
+    alert_info: AlertInfo = relationship(back_populates="event_codes")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
@@ -446,12 +410,12 @@ class AlertInfoParameter(Base):
 
     __tablename__: str = "alert_info_parameters"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    alertinfo_id: Mapped[int] = mapped_column(ForeignKey("alert_info.id"))
-    value_name: Mapped[str]
-    value: Mapped[str]
+    id: int | None = Field(default=None, primary_key=True)
+    alertinfo_id: int = Field(foreign_key="alert_info.id")
+    value_name: str
+    value: str
 
-    alert_info: Mapped[AlertInfo] = relationship(back_populates="parameters")
+    alert_info: AlertInfo = Relationship(back_populates="parameters")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
@@ -469,21 +433,21 @@ class AlertInfoParameter(Base):
         )
 
 
-class AlertInfoResource(Base):
+class AlertInfoResource(SQLModel, table=True):
     """External resource attached to an AlertInfo."""
 
     __tablename__: str = "alert_info_resources"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    alertinfo_id: Mapped[int] = mapped_column(ForeignKey("alert_info.id"))
-    resource_description: Mapped[str]
-    mime_type: Mapped[str]
-    size: Mapped[int | None]
-    uri: Mapped[str | None]
-    deref_uri: Mapped[str | None]
-    digest: Mapped[str | None]
+    id: int | None = Field(default=None, primary_key=True)
+    alertinfo_id: int = Field(foreign_key="alert_info.id")
+    resource_description: str
+    mime_type: str
+    size: int | None
+    uri: str | None
+    deref_uri: str | None
+    digest: str | None
 
-    alert_info: Mapped[AlertInfo] = relationship(back_populates="resources")
+    alert_info: AlertInfo = Relationship(back_populates="resources")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
@@ -505,27 +469,27 @@ class AlertInfoResource(Base):
         )
 
 
-class Area(Base):
+class Area(SQLModel, table=True):
     """A geographic area that an alert applies to."""
 
     __tablename__: str = "areas"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    alertinfo_id: Mapped[int] = mapped_column(ForeignKey("alert_info.id"))
-    area_description: Mapped[str]
-    altitude: Mapped[int | None]
-    ceiling: Mapped[int | None]
+    id: int | None = Field(default=None, primary_key=True)
+    alertinfo_id: int = Field(foreign_key="alert_info.id")
+    area_description: str
+    altitude: int | None
+    ceiling: int | None
 
-    polygons: Mapped[list[AreaPolygon]] = relationship(
+    polygons: list[AreaPolygon] = relationship(
         back_populates="area",
         cascade="all, delete-orphan",
     )
-    geocodes: Mapped[list[AreaGeoCode]] = relationship(
+    geocodes: list[AreaGeoCode] = relationship(
         back_populates="area",
         cascade="all, delete-orphan",
     )
 
-    alert_info: Mapped[AlertInfo] = relationship(back_populates="areas")
+    alert_info: AlertInfo = Relationship(back_populates="areas")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
@@ -561,17 +525,17 @@ class Area(Base):
         )
 
 
-class AreaGeoCode(Base):
+class AreaGeoCode(SQLModel, table=True):
     """Geocode-based description for an area."""
 
     __tablename__: str = "area_geocodes"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    area_id: Mapped[int] = mapped_column(ForeignKey("areas.id"))
-    value_name: Mapped[str]
-    value: Mapped[str]
+    id: int | None = Field(default=None, primary_key=True)
+    area_id: int = Field(foreign_key="areas.id")
+    value_name: str
+    value: str
 
-    area: Mapped[Area] = relationship(back_populates="geocodes")
+    area: Area = Relationship(back_populates="geocodes")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
@@ -589,18 +553,18 @@ class AreaGeoCode(Base):
         )
 
 
-class AreaPolygon(Base):
+class AreaPolygon(SQLModel, table=True):
     """Polygon-based description for an area."""
 
     __tablename__: str = "area_polygons"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    area_id: Mapped[int] = mapped_column(ForeignKey("areas.id"))
-    geom: Mapped[WKBElement] = mapped_column(
+    id: int | None = Field(default=None, primary_key=True)
+    area_id: int = Field(foreign_key="areas.id")
+    geom: WKBElement = mapped_column(
         Geography(geometry_type="POLYGON", srid=4326),
     )
 
-    area: Mapped[Area] = relationship(back_populates="polygons")
+    area: Area = relationship(back_populates="polygons")
 
     @classmethod
     def from_circle_text(cls, text: str) -> Self:
