@@ -3,12 +3,12 @@
 from datetime import datetime
 from enum import Enum
 from itertools import chain
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self
 
-from geoalchemy2 import Geography, WKBElement
+from geoalchemy2 import Geography
 from geoalchemy2.shape import from_shape
 from shapely import Point, Polygon
-from sqlalchemy.orm import mapped_column, relationship
+from sqlalchemy import Column
 from sqlmodel import Field, Relationship, SQLModel
 
 from cap_alerts.db import Base
@@ -196,7 +196,7 @@ class AlertAddress(SQLModel, table=True):
     alert_id: int = Field(foreign_key="alerts.id")
     address: str
 
-    alert: list[Alert] = Relationship(back_populates="addresses")
+    alert: Alert = Relationship(back_populates="addresses")
 
 
 class AlertCode(SQLModel, table=True):
@@ -208,7 +208,7 @@ class AlertCode(SQLModel, table=True):
     alert_id: int = Field(foreign_key="alerts.id")
     code: str
 
-    alert: list[Alert] = Relationship(back_populates="codes")
+    alert: Alert = Relationship(back_populates="codes")
 
 
 class AlertIncident(SQLModel, table=True):
@@ -220,7 +220,7 @@ class AlertIncident(SQLModel, table=True):
     alert_id: int = Field(foreign_key="alerts.id")
     incident: str
 
-    alert: list[Alert] = Relationship(back_populates="incidents")
+    alert: Alert = Relationship(back_populates="incidents")
 
 
 class AlertReference(SQLModel, table=True):
@@ -234,7 +234,7 @@ class AlertReference(SQLModel, table=True):
     identifier: str
     sent: datetime | None
 
-    alert: list[Alert] = Relationship(back_populates="references")
+    alert: Alert = Relationship(back_populates="references")
 
     @classmethod
     def from_text(cls, text: str) -> Self:
@@ -295,9 +295,9 @@ class AlertInfo(Base):
     resources: list[AlertInfoResource] = Relationship(
         back_populates="alert_info", cascade_delete=True
     )
-    areas: list[Area] = relationship(back_populates="alert_info", cascade_delete=True)
+    areas: list[Area] = Relationship(back_populates="alert_info", cascade_delete=True)
 
-    alert: Alert = relationship(back_populates="alert_info")
+    alert: Alert = Relationship(back_populates="alert_info")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
@@ -374,7 +374,7 @@ class AlertInfoResponseType(SQLModel, table=True):
     alertinfo_id: int = Field(foreign_key="alert_info.id")
     responsetype: AlertResponseTypeCode
 
-    alert_info: AlertInfo = relationship(back_populates="response_types")
+    alert_info: AlertInfo = Relationship(back_populates="response_types")
 
 
 class AlertInfoEventCode(SQLModel, table=True):
@@ -387,7 +387,7 @@ class AlertInfoEventCode(SQLModel, table=True):
     value_name: str
     value: str
 
-    alert_info: AlertInfo = relationship(back_populates="event_codes")
+    alert_info: AlertInfo = Relationship(back_populates="event_codes")
 
     @classmethod
     def from_element(cls, elem: _Element) -> Self:
@@ -480,13 +480,11 @@ class Area(SQLModel, table=True):
     altitude: int | None
     ceiling: int | None
 
-    polygons: list[AreaPolygon] = relationship(
-        back_populates="area",
-        cascade="all, delete-orphan",
+    polygons: list[AreaPolygon] = Relationship(
+        back_populates="area", cascade_delete=True
     )
-    geocodes: list[AreaGeoCode] = relationship(
-        back_populates="area",
-        cascade="all, delete-orphan",
+    geocodes: list[AreaGeoCode] = Relationship(
+        back_populates="area", cascade_delete=True
     )
 
     alert_info: AlertInfo = Relationship(back_populates="areas")
@@ -560,11 +558,9 @@ class AreaPolygon(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     area_id: int = Field(foreign_key="areas.id")
-    geom: WKBElement = mapped_column(
-        Geography(geometry_type="POLYGON", srid=4326),
-    )
+    geom: Any = Field(sa_column=Column(Geography("POLYGON", srid=4326)))
 
-    area: Area = relationship(back_populates="polygons")
+    area: Area = Relationship(back_populates="polygons")
 
     @classmethod
     def from_circle_text(cls, text: str) -> Self:
