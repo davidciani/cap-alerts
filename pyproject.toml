@@ -76,7 +76,7 @@ include = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/{{ project_slug }}"]
+packages = ["src/cap_alerts","src/cap_alerts_web"]
 
 # Matrix testing across Python versions
 [tool.hatch.envs.test]
