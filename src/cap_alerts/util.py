@@ -1,7 +1,7 @@
 """Utility functions for cap_alerts."""
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, overload
 
 import pyparsing as pp
 
@@ -90,7 +90,15 @@ def get_text(elem: _Element, xpath: str) -> str | None:
     return elem.findtext(xpath, namespaces=NS_MAP)
 
 
-def find_text(elem: _Element, xpath: str) -> str:
+@overload
+def find_text(elem: _Element, xpath: str, optional: Literal[False] = False) -> str: ...
+
+
+@overload
+def find_text(elem: _Element, xpath: str, optional: Literal[True]) -> str | None: ...
+
+
+def find_text(elem: _Element, xpath: str, optional: bool = False) -> str | None:
     """Finds text for the first matching subelement, by tag name or path.
 
     Wrapper around lxml function, applying namespace map.
@@ -103,7 +111,7 @@ def find_text(elem: _Element, xpath: str) -> str:
         str | None: found text
     """
     result = elem.findtext(xpath, namespaces=NS_MAP)
-    if result is None:
+    if result is None and optional is False:
         raise RequiredElementNotFoundError(xpath)
     return result
 
