@@ -1,7 +1,7 @@
 """models.py - Data models for cap_alerts."""
 
 from datetime import datetime  # noqa: TC003
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from geoalchemy2 import Geography
@@ -9,7 +9,7 @@ from sqlalchemy import Column
 from sqlmodel import Field, Relationship, SQLModel
 
 
-class AlertScope(str, Enum):
+class AlertScope(StrEnum):
     """Enumeration of scope of alert disemination."""
 
     PUBLIC = "Public"
@@ -17,7 +17,7 @@ class AlertScope(str, Enum):
     PRIVATE = "Private"
 
 
-class AlertStatus(str, Enum):
+class AlertStatus(StrEnum):
     """Enumeration of status of an alert."""
 
     ACTUAL = "Actual"
@@ -27,7 +27,7 @@ class AlertStatus(str, Enum):
     DRAFT = "Draft"
 
 
-class AlertType(str, Enum):
+class AlertType(StrEnum):
     """Enumeration of type of alert."""
 
     ALERT = "Alert"
@@ -37,7 +37,7 @@ class AlertType(str, Enum):
     ERROR = "Error"
 
 
-class AlertCategoryCode(str, Enum):
+class AlertCategoryCode(StrEnum):
     """Enumeration of type of event described by an alert."""
 
     GEO = "Geo"
@@ -54,7 +54,7 @@ class AlertCategoryCode(str, Enum):
     OTHER = "Other"
 
 
-class AlertCertainty(str, Enum):
+class AlertCertainty(StrEnum):
     """Enumeration of certainty of event."""
 
     OBSERVED = "Observed"
@@ -65,7 +65,7 @@ class AlertCertainty(str, Enum):
     UNKNOWN = "Unknown"
 
 
-class AlertResponseTypeCode(str, Enum):
+class AlertResponseTypeCode(StrEnum):
     """Enumeration of how one should respond to the alert."""
 
     SHELTER = "Shelter"
@@ -79,7 +79,7 @@ class AlertResponseTypeCode(str, Enum):
     NONE = "None"
 
 
-class AlertSeverity(str, Enum):
+class AlertSeverity(StrEnum):
     """Enumeration of severity of the potential event."""
 
     EXTREME = "Extreme"
@@ -89,7 +89,7 @@ class AlertSeverity(str, Enum):
     UNKNOWN = "Unknown"
 
 
-class AlertUrgency(str, Enum):
+class AlertUrgency(StrEnum):
     """Enumeration of alert's urgency."""
 
     IMMEDIATE = "Immediate"
