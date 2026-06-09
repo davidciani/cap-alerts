@@ -6,7 +6,7 @@ from typing import Any
 
 from geoalchemy2 import Geography
 from sqlalchemy import Column
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import DateTime, Field, Relationship, SQLModel
 
 
 class AlertScope(StrEnum):
@@ -107,7 +107,7 @@ class Alert(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     identifier: str
     sender: str
-    sent: datetime
+    sent: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
     status: AlertStatus
     msgtype: AlertType
     source: str | None
@@ -175,7 +175,9 @@ class AlertReference(SQLModel, table=True):
     alert_id: int | None = Field(default=None, foreign_key="alerts.id")
     sender: str | None
     identifier: str
-    sent: datetime | None
+    sent: datetime | None = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
 
     alert: Alert = Relationship(back_populates="references")
 
@@ -193,9 +195,15 @@ class AlertInfo(SQLModel, table=True):
     severity: AlertSeverity
     certainty: AlertCertainty
     audience: str | None
-    effective: datetime | None
-    onset: datetime | None
-    expires: datetime | None
+    effective: datetime | None = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    onset: datetime | None = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    expires: datetime | None = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
     sender_name: str | None
     headline: str | None
     description: str | None
