@@ -2,46 +2,58 @@
 
 import logging
 import lzma
-import multiprocessing
-from concurrent.futures import Future, ProcessPoolExecutor
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
+import httpx
 import msgspec.json
 from lxml import etree
 from rich.console import Console
+from rich.logging import RichHandler
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
     Progress,
+    ProgressColumn,
     SpinnerColumn,
     TaskProgressColumn,
     TextColumn,
     TimeRemainingColumn,
 )
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlmodel import Session, SQLModel, create_engine
 
-from cap_alerts import models
+from cap_alerts.parse_alert import extract_alert
 
 if TYPE_CHECKING:
-    from multiprocessing.managers import DictProxy
+    from cap_alerts import models
 
 logger = logging.getLogger(__name__)
 
 
+MODE = "api"  # api or files
+
+# paths for files mode
 IN_DIR = Path("data/ipaws_alerts/json")
-FILES = list(IN_DIR.glob("IpawsArchivedAlerts_*.jsonl.xz"))
+PATTERN = "IpawsArchivedAlerts_*.jsonl.xz"
+
+# url for api mode
+FEMA_API_URL = "https://www.fema.gov/api/open/v1/IpawsArchivedAlerts"
 
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-)
+DATABASE_URL = "postgresql+psycopg://cap_alerts_app@localhost/cap_alerts"
+# DATABASE_URL = "sqlite:///:memory:"
+
+engine = create_engine(DATABASE_URL, echo=False)
 
 console = Console()
 
-progress_columns = [
+FORMAT = "%(message)s"
+logging.basicConfig(
+    level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler(console=console)]
+)
+
+
+progress_columns: list[ProgressColumn] = [
     SpinnerColumn(),
     TextColumn("[progress.description]{task.description}"),
     BarColumn(),
@@ -49,46 +61,6 @@ progress_columns = [
     TaskProgressColumn(),
     TimeRemainingColumn(),
 ]
-
-
-session: sessionmaker[Session]
-_progress: DictProxy[Any, Any]
-
-
-def parse_alert(raw_xml: str) -> models.Alert:
-    """Parse raw xml into Alert object and insert into database.
-
-    Args:
-        raw_xml (str): raw alert xml as a string
-    """
-    root = etree.fromstring(raw_xml.encode())
-    return models.Alert.from_element(root)
-
-
-def print_result(future: Future) -> None:
-    """If the task resulted in an exception, print it.
-
-    Args:
-        future (Future): task result
-    """
-    if e := future.exception():
-        console.log(e)
-
-
-def init_worker(progress: DictProxy[Any, Any]) -> None:
-    """Initalize worker process.
-
-    Args:
-        progress (dict): handle for progress bar to update
-    """
-    global session, _progress
-    engine = create_engine(
-        "postgresql+psycopg://cap_alerts_app@localhost/cap_alerts",
-        echo=False,
-    )
-
-    session = sessionmaker(engine)
-    _progress = progress
 
 
 def has_cmas(alert: models.Alert) -> bool:
@@ -107,83 +79,108 @@ def has_cmas(alert: models.Alert) -> bool:
     return True
 
 
-def process_file(task_id: int, file_path: Path) -> None:
-    """Process a jsonl file, extract alert xml, and insert into database.
-
-    Args:
-        task_id (int): task id for progress bar
-        file_path (Path): jsonl file with alert records
-    """
-    with lzma.open(file_path, "rt") as f_in:
+def load_from_file(file_path: Path, progress: Progress | None = None):
+    with Session(engine) as session, lzma.open(file_path, "rt") as f_in:
         lines = f_in.read().splitlines()
-    len_of_task = len(lines)
 
-    decoder = msgspec.json.Decoder()
-    for n, line in enumerate(lines):
-        raw_xml: str = decoder.decode(line)["originalMessage"]
-        alert = parse_alert(raw_xml)
+        if progress:
+            task_id = progress.add_task(description=f"Loading {file_path.name}…")
+            lines = progress.track(lines, task_id=task_id)
 
-        # skip the non-CMAS alerts from NWS
-        if alert.sender == "w-nws.webmaster@noaa.gov" and not has_cmas(alert):
-            _progress[task_id] = {"progress": n + 1, "total": len_of_task}
-            continue
+        decoder = msgspec.json.Decoder()
 
-        with session() as s, s.begin():
-            s.add(alert)
+        for line in lines:
+            raw_xml: str = decoder.decode(line)["originalMessage"]
+            root = etree.fromstring(raw_xml.encode())
+            alert = extract_alert(root)
 
-        _progress[task_id] = {"progress": n + 1, "total": len_of_task}
+            # skip the non-CMAS alerts from NWS
+            if alert.sender == "w-nws.webmaster@noaa.gov" and not has_cmas(alert):
+                pass
+            else:
+                session.add(alert)
+
+        session.commit()
+
+        if progress:
+            progress.update(task_id, visible=False)
+
+
+def load_from_files(directory: Path, pattern: str, progress: Progress | None):
+    files_sorted = sorted(directory.glob(pattern), reverse=True)
+
+    if progress:
+        task_id = progress.add_task("Loading files…")
+        files_sorted = progress.track(files_sorted, task_id=task_id)
+
+    for file_path in files_sorted:
+        load_from_file(file_path, progress=progress)
+
+
+def load_from_api(progress: Progress | None = None):
+
+    with Session(engine) as session, httpx.Client(timeout=None) as client:
+        if progress:
+            task_id = progress.add_task("Loading records…")
+            need_count = True
+        else:
+            need_count = False
+
+        # Iterate until no more pages of results
+        skip = 0
+        while True:
+            # Get page of results from API
+            try:
+                resp = client.get(
+                    FEMA_API_URL,
+                    params={"$skip": str(skip), "$top": 10_000, "$count": need_count},
+                )
+                resp.raise_for_status()
+
+            except httpx.HTTPStatusError as e:
+                console.log(f"ERROR {e.response.status_code}: {e.response.url}")
+                raise
+
+            # Decode json
+            json_data = resp.json()
+
+            if progress and need_count:
+                progress.update(task_id, total=int(json_data["metadata"]["count"]))
+                need_count = False
+
+            # If no results were returned, we're done.
+            if len(json_data["IpawsArchivedAlerts"]) == 0:
+                break
+
+            for alert_data in json_data["IpawsArchivedAlerts"]:
+                raw_xml: str = alert_data["originalMessage"]
+                root = etree.fromstring(raw_xml.encode())
+                alert = extract_alert(root)
+
+                # skip the non-CMAS alerts from NWS
+                if alert.sender == "w-nws.webmaster@noaa.gov" and not has_cmas(alert):
+                    pass
+                else:
+                    session.add(alert)
+
+                if progress:
+                    progress.update(task_id, advance=1)
+
+            session.commit()
 
 
 def main() -> None:
-    """Kick off multi-process ETL job."""
     console.log("START")
 
+    SQLModel.metadata.drop_all(bind=engine)
+    SQLModel.metadata.create_all(engine)
+
     with Progress(*progress_columns, console=console) as progress:
-        futures = []
-        with multiprocessing.Manager() as manager:
-            _progress = manager.dict()
-
-            files = FILES
-            overall_progress_task = progress.add_task(
-                "Loading files…",
-                total=len(files),
-            )
-
-            with ProcessPoolExecutor(
-                initializer=init_worker,
-                initargs=(_progress,),
-            ) as executor:
-                for file_path in sorted(files):
-                    task_id = progress.add_task(
-                        f"Loading {file_path.name}…",
-                        visible=False,
-                    )
-                    future = executor.submit(process_file, task_id, file_path)
-                    future.add_done_callback(print_result)
-                    futures.append(future)
-
-                while (n_finished := sum([future.done() for future in futures])) < len(
-                    futures,
-                ):
-                    progress.update(
-                        overall_progress_task,
-                        completed=n_finished,
-                        total=len(futures),
-                    )
-                    for task_id, update_data in _progress.items():
-                        latest = update_data["progress"]
-                        total = update_data["total"]
-                        # update the progress bar for this task:
-                        progress.update(
-                            task_id,
-                            completed=latest,
-                            total=total,
-                            visible=latest < total,
-                        )
-
-                # raise any errors:
-                for future in futures:
-                    future.result()
+        match MODE:
+            case "files":
+                load_from_files(IN_DIR, PATTERN, progress=progress)
+            case "api":
+                load_from_api(progress=progress)
 
     console.log("END")
 
