@@ -2,9 +2,8 @@
 
 import logging
 import lzma
-from concurrent.futures import Future
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import msgspec.json
 from lxml import etree
@@ -23,8 +22,6 @@ from sqlmodel import Session, SQLModel, create_engine
 from cap_alerts.parse_alert import extract_alert
 
 if TYPE_CHECKING:
-    from multiprocessing.managers import DictProxy
-
     from cap_alerts import models
 
 logger = logging.getLogger(__name__)
@@ -54,31 +51,6 @@ progress_columns = [
 
 
 session: Session
-_progress: DictProxy[Any, Any]
-
-
-def print_result(future: Future) -> None:
-    """If the task resulted in an exception, print it.
-
-    Args:
-        future (Future): task result
-    """
-    if e := future.exception():
-        console.log(e)
-
-
-def init_worker(progress: DictProxy[Any, Any]) -> None:
-    """Initalize worker process.
-
-    Args:
-        progress (dict): handle for progress bar to update
-    """
-    global session, _progress
-    engine = create_engine(DATABASE_URL, echo=True)
-
-    session = Session(engine)
-
-    _progress = progress
 
 
 def has_cmas(alert: models.Alert) -> bool:
@@ -97,38 +69,38 @@ def has_cmas(alert: models.Alert) -> bool:
     return True
 
 
-def process_file(task_id: int, file_path: Path) -> None:
-    """Process a jsonl file, extract alert xml, and insert into database.
-
-    Args:
-        task_id (int): task id for progress bar
-        file_path (Path): jsonl file with alert records
-    """
-    with lzma.open(file_path, "rt") as f_in:
+def load_from_file(file_path: Path, progress: Progress | None = None):
+    with Session(engine) as session, lzma.open(file_path, "rt") as f_in:
         lines = f_in.read().splitlines()
-    len_of_task = len(lines)
 
-    decoder = msgspec.json.Decoder()
-    for n, line in enumerate(lines):
-        raw_xml: str = decoder.decode(line)["originalMessage"]
-        root = etree.fromstring(raw_xml.encode())
-        alert = extract_alert(root)
+        if progress:
+            task_id = progress.add_task(description=f"Loading {file_path.name}…")
+            lines = progress.track(lines, task_id=task_id)
 
-        # skip the non-CMAS alerts from NWS
-        if alert.sender == "w-nws.webmaster@noaa.gov" and not has_cmas(alert):
-            _progress[task_id] = {"progress": n + 1, "total": len_of_task}
-            continue
+        decoder = msgspec.json.Decoder()
 
-        session.add(alert)
+        for line in lines:
+            raw_xml: str = decoder.decode(line)["originalMessage"]
+            root = etree.fromstring(raw_xml.encode())
+            alert = extract_alert(root)
 
-        _progress[task_id] = {"progress": n + 1, "total": len_of_task}
+            # skip the non-CMAS alerts from NWS
+            if alert.sender == "w-nws.webmaster@noaa.gov" and not has_cmas(alert):
+                pass
+            else:
+                session.add(alert)
+
+        session.commit()
+
+        if progress:
+            progress.update(task_id, visible=False)
+
+
+engine = create_engine(DATABASE_URL, echo=False)
 
 
 def main() -> None:
-    """Kick off multi-process ETL job."""
     console.log("START")
-
-    engine = create_engine(DATABASE_URL, echo=False)
 
     SQLModel.metadata.drop_all(bind=engine)
     SQLModel.metadata.create_all(engine)
@@ -143,28 +115,7 @@ def main() -> None:
         )
 
         for file_path in sorted(files):
-            with lzma.open(file_path, "rt") as f_in:
-                lines = f_in.read().splitlines()
-
-            task_id = progress.add_task(f"Loading {file_path.name}…", total=len(lines))
-
-            decoder = msgspec.json.Decoder()
-            for line in lines:
-                raw_xml: str = decoder.decode(line)["originalMessage"]
-                root = etree.fromstring(raw_xml.encode())
-                alert = extract_alert(root)
-
-                # skip the non-CMAS alerts from NWS
-                if alert.sender == "w-nws.webmaster@noaa.gov" and not has_cmas(alert):
-                    progress.update(task_id, advance=1)
-                    continue
-
-                session.add(alert)
-
-                progress.update(task_id, advance=1)
-
-            session.commit()
-            progress.update(task_id, visible=False)
+            load_from_file(file_path, progress=progress)
             progress.update(overall_progress_task, advance=1)
 
     console.log("END")
