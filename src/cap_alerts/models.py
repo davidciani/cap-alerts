@@ -175,9 +175,7 @@ class AlertReference(SQLModel, table=True):
     alert_id: int | None = Field(default=None, foreign_key="alerts.id")
     sender: str | None
     identifier: str
-    sent: datetime | None = Field(
-        sa_column=Column(DateTime(timezone=True), nullable=False)
-    )
+    sent: datetime | None = Field(sa_column=Column(DateTime(timezone=True)))
 
     alert: Alert = Relationship(back_populates="references")
 
@@ -195,15 +193,9 @@ class AlertInfo(SQLModel, table=True):
     severity: AlertSeverity
     certainty: AlertCertainty
     audience: str | None
-    effective: datetime | None = Field(
-        sa_column=Column(DateTime(timezone=True), nullable=False)
-    )
-    onset: datetime | None = Field(
-        sa_column=Column(DateTime(timezone=True), nullable=False)
-    )
-    expires: datetime | None = Field(
-        sa_column=Column(DateTime(timezone=True), nullable=False)
-    )
+    effective: datetime | None = Field(sa_column=Column(DateTime(timezone=True)))
+    onset: datetime | None = Field(sa_column=Column(DateTime(timezone=True)))
+    expires: datetime | None = Field(sa_column=Column(DateTime(timezone=True)))
     sender_name: str | None
     headline: str | None
     description: str | None
