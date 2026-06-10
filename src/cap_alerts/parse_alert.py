@@ -6,6 +6,7 @@ from shapely.geometry import Point, Polygon
 
 from cap_alerts.util import (
     MalformedPolygonError,
+    create_wgs84_circle,
     extract_quoted,
     find_date,
     find_text,
@@ -183,9 +184,10 @@ def extract_alert(elem: _Element) -> Alert:
                     coords, radius = circle_str.split()
                     latitude, longitude = coords.split(",")
 
-                    circle: Point = Point(float(latitude), float(longitude)).buffer(
-                        float(radius) * 1000
+                    circle = create_wgs84_circle(
+                        float(longitude), float(latitude), float(radius) * 1000
                     )
+
                     area.polygons.append(
                         AreaPolygon(geom=from_shape(circle, srid=4326))
                     )

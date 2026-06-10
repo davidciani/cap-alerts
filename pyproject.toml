@@ -39,6 +39,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.36",
     "types-lxml>=2024.11.8",
     "sqlmodel>=0.0.38",
+    "pyproj>=3.7.2",
 ]
 
 [dependency-groups]
@@ -63,7 +64,7 @@ Changelog = "https://github.com/davidciani/cap-alerts/blob/main/CHANGELOG.md"
 
 
 [project.scripts]
-cap_alerts = "cap_alerts:main"
+cap_alerts = "cap_alerts.cli:app"
 
 
 # =============================================================================

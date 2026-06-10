@@ -4,6 +4,9 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Literal, overload
 
 import pyparsing as pp
+import pyproj
+from shapely.geometry import Point, Polygon
+from shapely.ops import transform
 
 from cap_alerts import NS_MAP
 
@@ -235,3 +238,34 @@ def get_date(elem: _Element, xpath: str) -> datetime | None:
         return datetime.fromisoformat(got_string)
 
     return None
+
+
+def create_wgs84_circle(lon: float, lat: float, radius_meters: float) -> Polygon:
+    """
+    Creates a circular polygon buffered in meters and returns it in SRID 4326.
+    """
+    original_point = Point(lon, lat)
+
+    # Define the WGS 84 CRS (Lat/Lon)
+    wgs84 = pyproj.CRS("EPSG:4326")
+
+    # Create a local Azimuthal Equidistant projection centered exactly on the point.
+    # This allows us to calculate accurate distances in meters.
+    aeqd_proj = pyproj.CRS(
+        proj="aeqd", ellps="WGS84", datum="WGS84", lat_0=lat, lon_0=lon
+    )
+
+    # Set up the forward and reverse transformers
+    project_to_meters = pyproj.Transformer.from_crs(
+        wgs84, aeqd_proj, always_xy=True
+    ).transform
+    project_to_wgs84 = pyproj.Transformer.from_crs(
+        aeqd_proj, wgs84, always_xy=True
+    ).transform
+
+    # Transform point to meters, apply the buffer, and transform back to WGS 84
+    point_meters: Point = transform(project_to_meters, original_point)
+    circle_polygon_meters: Polygon = point_meters.buffer(radius_meters)
+    circle_polygon_wgs84: Polygon = transform(project_to_wgs84, circle_polygon_meters)
+
+    return circle_polygon_wgs84
