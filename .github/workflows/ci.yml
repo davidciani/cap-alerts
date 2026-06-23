@@ -18,7 +18,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: extractions/setup-just@v4
 
       - name: Install uv
@@ -44,7 +44,7 @@ jobs:
     name: Type Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: extractions/setup-just@v4
 
       - name: Install uv
@@ -75,7 +75,7 @@ jobs:
         python-version: ["3.14"]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: extractions/setup-just@v4
 
       - name: Install uv
@@ -109,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Run Gitleaks
@@ -135,5 +135,5 @@ jobs:
     if: ${{ github.actor != 'dependabot[bot]' && github.actor != 'dependabot-preview[bot]' && github.actor != 'Renovate[bot]' }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - run: semgrep scan
